@@ -72,3 +72,10 @@ template isSeekable(D)
     }()));
 }
 
+/**
+Device supports both primitives of source and sink.
+*/
+template isDevice(D)
+{
+	enum isDevice = isSource!D && isSink!D;
+}

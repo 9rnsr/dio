@@ -1,10 +1,12 @@
-SRCS=io\core.d io\file.d
+SRCS=io\core.d io\file.d io\buffer.d
 
 DFLAGS=-property -w
 
-unittest: $(SRCS) emptymain.d
+unittest: unittest.exe
+
+unittest.exe: $(SRCS) emptymain.d
 	dmd -unittest $(DFLAGS) $(SRCS) emptymain.d -ofunittest.exe
 
-rununittest: unittest
+rununittest: unittest.exe
 	unittest
 
