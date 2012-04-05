@@ -1,11 +1,11 @@
 module io.buffer;
 
 import io.core;
-import std.algorithm : move, min, max;
+import std.algorithm : min, max;
 
 /**
 */
-auto buffered(Dev)(Dev device, size_t bufferSize = 4096)
+@property auto buffered(Dev)(Dev device, size_t bufferSize = 4096)
     if (isSource!Dev || isSink!Dev)
 {
     static struct Buffered
@@ -23,7 +23,7 @@ auto buffered(Dev)(Dev device, size_t bufferSize = 4096)
         */
         this(Dev d, size_t bufferSize)
         {
-            move(d, device);
+            device = d;
             buffer.length = bufferSize;
         }
 
@@ -174,15 +174,17 @@ auto buffered(Dev)(Dev device, size_t bufferSize = 4096)
         }
     }
 
-    return Buffered(move(device), bufferSize);
+    return Buffered(device, bufferSize);
 }
 
-unittest
+version(unittest)
 {
     import io.file;
     import std.algorithm;
-
-    auto file = File(__FILE__).buffered();
+}
+unittest
+{
+    auto file = File(__FILE__).buffered;
     file.fetch();
     assert(startsWith(file.available, "module io.buffer;\n"));
 }

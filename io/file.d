@@ -182,10 +182,12 @@ public:
 static assert(isSource!File);
 static assert(isSink!File);
 
-unittest
+version(unittest)
 {
     import std.algorithm;
-
+}
+unittest
+{
     auto file = File(__FILE__);
     ubyte[] buf = new ubyte[64];
     ubyte[] b = buf;

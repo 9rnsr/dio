@@ -1,4 +1,4 @@
-SRCS=io\core.d io\file.d io\buffer.d
+SRCS=io\core.d io\file.d io\buffer.d io\filter.d
 
 DFLAGS=-property -w
 
