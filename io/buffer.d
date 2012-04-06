@@ -36,6 +36,28 @@ import std.algorithm : min, max;
 
       static if (isSource!Dev)
         /**
+        primitives of source.
+        */
+        bool pull(ref ubyte[] buf)
+        {
+            auto av = available;
+            if (buf.length < av.length)
+            {
+                buf[] = av[0 .. buf.length];
+                consume(buf.length);
+                buf = buf[$ .. $];
+                return true;
+            }
+            else
+            {
+                buf[0 .. av.length] = av[];
+                consume(av.length);
+                return fetch();
+            }
+        }
+
+      static if (isSource!Dev)
+        /**
         primitives of pool.
         */
         bool fetch()
@@ -48,9 +70,9 @@ import std.algorithm : min, max;
 
             if (empty_reserves && available.length == 0)
             {
-                static if (isDevice!Dev)    base_pos += ava_end;
-                static if (isDevice!Dev)    rsv_start = rsv_end = 0;
-                                        ava_start = ava_end = 0;
+                static if (isDevice!Dev) base_pos += ava_end;
+                static if (isDevice!Dev) rsv_start = rsv_end = 0;
+                                         ava_start = ava_end = 0;
             }
 
           static if (isDevice!Dev)
