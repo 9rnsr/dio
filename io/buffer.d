@@ -10,10 +10,11 @@ import std.algorithm : min, max;
 {
     static struct Buffered
     {
-
     private:
+        alias DeviceElementType!Dev E;
+
         Dev device;
-        ubyte[] buffer;
+        E[] buffer;
         static if (isSink  !Dev) size_t rsv_start = 0, rsv_end = 0;
         static if (isSource!Dev) size_t ava_start = 0, ava_end = 0;
         static if (isDevice!Dev) long base_pos = 0;
@@ -38,7 +39,7 @@ import std.algorithm : min, max;
         /**
         primitives of source.
         */
-        bool pull(ref ubyte[] buf)
+        bool pull(ref E[] buf)
         {
             auto av = available;
             if (buf.length < av.length)
@@ -89,7 +90,7 @@ import std.algorithm : min, max;
 
       static if (isSource!Dev)
         /// ditto
-        @property const(ubyte)[] available() const
+        @property const(E)[] available() const
         {
             return buffer[ava_start .. ava_end];
         }
@@ -108,14 +109,14 @@ import std.algorithm : min, max;
         /*
         primitives of output pool?
         */
-        private @property ubyte[] usable()
+        private @property E[] usable()
         {
           static if (isDevice!Dev)
             return buffer[ava_start .. $];
           else
             return buffer[rsv_end .. $];
         }
-        private @property const(ubyte)[] reserves()
+        private @property const(E)[] reserves()
         {
             return buffer[rsv_start .. rsv_end];
         }
@@ -149,7 +150,7 @@ import std.algorithm : min, max;
           static if (isDevice!Dev)
             device.seek(base_pos + rsv_start, SeekPos.Set);
 
-            const(ubyte)[] rsv = buffer[rsv_start .. rsv_end];
+            const(E)[] rsv = buffer[rsv_start .. rsv_end];
             auto result = device.push(rsv);
             if (result)
             {
@@ -174,7 +175,7 @@ import std.algorithm : min, max;
         /**
         primitive of sink.
         */
-        bool push(const(ubyte)[] data)
+        bool push(const(E)[] data)
         {
         //  return device.push(data);
 
