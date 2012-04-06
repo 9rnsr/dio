@@ -13,7 +13,7 @@ debug
 }
 
 /**
-File is seekable device
+File is seekable device.
 */
 struct File
 {
@@ -32,6 +32,8 @@ public:
         pRefCounter = new size_t;
         *pRefCounter = 1;
     }
+    /**
+    */
     this(string fname, in char[] mode = "r")
     {
         int share = FILE_SHARE_READ | FILE_SHARE_WRITE;

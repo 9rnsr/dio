@@ -120,16 +120,12 @@ If $(D device) has pool interface, keep it.
         Dev device;
 
     public:
-        /**
-        */
         this(Dev d)
         {
             //move(d, device);
             device = d;
         }
 
-        /**
-        */
         bool pull(ref E[] buf)
         {
             return device.pull(buf);
@@ -137,20 +133,14 @@ If $(D device) has pool interface, keep it.
 
       static if (isPool!Dev)
       {
-        /**
-        */
         bool fetch()
         {
             return device.fetch();
         }
-
-        /// ditto
         @property const(E)[] available() const
         {
             return device.available;
         }
-
-        /// ditto
         void consume(size_t n)
         {
             device.consume(n);
@@ -203,16 +193,11 @@ Disable source interface of $(D device).
         Dev device;
 
     public:
-        /**
-        */
         this(Dev d)
         {
-            //move(d, device);
             device = d;
         }
 
-        /**
-        */
         bool push(ref const(E)[] buf)
         {
             return device.push(buf);
@@ -270,16 +255,12 @@ While device operation, remain bytes are cached.
       }
 
     public:
-        /**
-        */
         this(Dev d)
         {
             device = d;
         }
 
       static if (isSource!Dev)
-        /**
-        */
         bool pull(ref E[] buf)
         {
             auto v = cast(ubyte[])buf;
@@ -311,21 +292,14 @@ While device operation, remain bytes are cached.
 
       static if (isPool!Dev)
       {
-        /**
-        primitives of pool.
-        */
         bool fetch()
         {
             return device.fetch();
         }
-
-        /// ditto
         @property const(E)[] available() const
         {
             return cast(const(E)[])device.available;
         }
-
-        /// ditto
         void consume(size_t n)
         {
             device.consume(E.sizeof * n);
@@ -333,9 +307,6 @@ While device operation, remain bytes are cached.
       }
 
       static if (isSink!Dev)
-        /**
-        primitive of sink.
-        */
         bool push(ref const(E)[] data)
         {
           static if (E.sizeof > 1)
@@ -354,8 +325,6 @@ While device operation, remain bytes are cached.
         }
 
       static if (isSeekable!Dev)
-        /**
-        */
         ulong seek(long offset, SeekPos whence)
         {
             return device.seek(offset, whence);
@@ -396,8 +365,6 @@ If $(D device) is a $(I sink), output range interface is available.
         bool eof;
 
     public:
-        /**
-        */
         this(Dev d)
         {
             device = d;
@@ -407,21 +374,14 @@ If $(D device) is a $(I sink), output range interface is available.
 
       static if (isPool!Dev)
       {
-        /**
-        primitives of input range.
-        */
         @property bool empty() const
         {
             return eof;
         }
-
-        /// ditto
         @property inout(E) front() inout
         {
             return device.available[0];
         }
-
-        /// ditto
         void popFront()
         {
             device.consume(1);
@@ -432,14 +392,10 @@ If $(D device) is a $(I sink), output range interface is available.
 
       static if (isSink!Dev)
       {
-        /**
-        primitive of output range.
-        */
         void put(const(E) data)
         {
             put((&data)[0 .. 1]);
         }
-        /// ditto
         void put(const(E)[] data)
         {
             while (data.length > 0)
