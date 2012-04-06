@@ -2,6 +2,151 @@ module io.filter;
 
 import io.core;
 
+/**
+Disable sink interface of $(D device).
+If $(D device) has pool interface, keep it.
+*/
+@property auto sourced(Dev)(Dev device)
+    if (isSource!Dev && isSink!Dev)
+{
+    struct Sourced
+    {
+    private:
+        alias DeviceElementType!Dev E;
+        Dev device;
+
+    public:
+        /**
+        */
+        this(Dev d)
+        {
+            //move(d, device);
+            device = d;
+        }
+
+        /**
+        */
+        bool pull(ref E[] buf)
+        {
+            return device.pull(buf);
+        }
+
+      static if (isPool!Dev)
+      {
+        /**
+        */
+        bool fetch()
+        {
+            return device.fetch();
+        }
+
+        /// ditto
+        @property const(E)[] available() const
+        {
+            return device.available;
+        }
+
+        /// ditto
+        void consume(size_t n)
+        {
+            device.consume(n);
+        }
+      }
+    }
+
+    return Sourced(device);
+}
+
+/// ditto
+@property auto sourced(Dev)(Dev device)
+    if (isSource!Dev && !isSink!Dev)
+{
+    return device;
+}
+
+version(unittest)
+{
+    import io.file;
+    import io.buffer;
+}
+unittest
+{
+    alias typeof(File.init.sourced) InputFile;
+    static assert( isSource!InputFile);
+    static assert(!isSink!InputFile);
+
+    alias typeof(InputFile.init.sourced) InputFile2;
+    static assert( isSource!InputFile2);
+    static assert(!isSink!InputFile2);
+    static assert(is(InputFile == InputFile2));
+
+    alias typeof(File.init.buffered.sourced) BufferedInputFile;
+    static assert( isSource!BufferedInputFile);
+    static assert( isPool!BufferedInputFile);
+    static assert(!isSink!BufferedInputFile);
+}
+
+/**
+Disable source interface of $(D device).
+*/
+@property auto sinked(Dev)(Dev device)
+    if (isSource!Dev && isSink!Dev)
+{
+    struct Sinked
+    {
+    private:
+        alias DeviceElementType!Dev E;
+        Dev device;
+
+    public:
+        /**
+        */
+        this(Dev d)
+        {
+            //move(d, device);
+            device = d;
+        }
+
+        /**
+        */
+        bool push(ref const(E)[] buf)
+        {
+            return device.push(buf);
+        }
+    }
+
+    return Sinked(device);
+}
+
+/// ditto
+@property auto sinked(Dev)(Dev device)
+    if (!isSource!Dev && isSink!Dev)
+{
+    return device;
+}
+
+version(unittest)
+{
+    import io.file;
+    import io.buffer;
+}
+unittest
+{
+    alias typeof(File.init.sinked) OutputFile;
+    static assert(!isSource!OutputFile);
+    static assert( isSink!OutputFile);
+
+    alias typeof(OutputFile.init.sinked) OutputFile2;
+    static assert(!isSource!OutputFile2);
+    static assert( isSink!OutputFile2);
+    static assert(is(OutputFile == OutputFile2));
+
+    alias typeof(File.init.buffered.sinked) BufferedOutputFile;
+    static assert(!isSource!BufferedOutputFile);
+    static assert(!isPool!BufferedOutputFile);
+    static assert( isSink!BufferedOutputFile);
+}
+
 /*
 */
 @property auto coerced(E, Dev)(Dev device)
