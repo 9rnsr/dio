@@ -2,7 +2,6 @@ module io.text;
 
 import io.core;
 import io.buffer;
-import io.filter;
 import std.traits;
 import std.range;
 
