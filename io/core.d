@@ -1,17 +1,22 @@
 module io.core;
 
 /**
-Returns $(D true) if $(D_PARAM D) is a $(I source). A Source must define the
+Returns $(D true) if $(D Dev) is a $(I source). A Source must define the
 primitive $(D pull).
 
 $(D pull) operation provides synchronous but non-blocking input.
 */
 template isSource(Dev)
 {
+    enum isSource = .isSource!(Dev, DeviceElementType!Dev);
+}
+/// ditto
+template isSource(Dev, E = ubyte)
+{
     enum isSource = is(typeof(
     {
         Dev d;
-        ubyte[] buf;
+        E[] buf;
         while (d.pull(buf)) {}
     }));
 }
@@ -24,12 +29,17 @@ You can assume that pool is not $(D fetch)-ed yet.$(BR)
 */
 template isPool(Dev)
 {
+    enum isPool = .isPool!(Dev, DeviceElementType!Dev);
+}
+/// ditto
+template isPool(Dev, E)
+{
     enum isPool = is(typeof(
     {
         Dev d;
         while (d.fetch())
         {
-            auto buf = d.available;
+            const(E)[] buf = d.available;
             size_t n;
             d.consume(n);
         }
@@ -37,17 +47,22 @@ template isPool(Dev)
 }
 
 /**
-Returns $(D true) if $(D_PARAM D) is a $(I sink). A Source must define the
+Returns $(D true) if $(D Dev) is a $(I sink). A Source must define the
 primitive $(D push).
 
 $(D push) operation provides synchronous but non-blocking output.
 */
 template isSink(Dev)
 {
+    enum isSink = .isSink!(Dev, DeviceElementType!Dev);
+}
+/// ditto
+template isSink(Dev, E)
+{
     enum isSink = is(typeof(
     {
         Dev d;
-        const(ubyte)[] buf;
+        const(E)[] buf;
         do {} while (d.push(buf));
     }));
 }
@@ -61,13 +76,13 @@ enum SeekPos
 }
 
 /**
-Check that $(D_PARAM D) is seekable source or sink.
-Seekable device supports $(D seek) primitive.
+Check that $(D Dev) is seekable source or sink.
+Seekable device supports $(Dev seek) primitive.
 */
-template isSeekable(D)
+template isSeekable(Dev)
 {
     enum isSeekable = is(typeof({
-        D d;
+        Dev d;
         d.seek(0, SeekPos.Set);
     }()));
 }
@@ -75,7 +90,33 @@ template isSeekable(D)
 /**
 Device supports both primitives of source and sink.
 */
-template isDevice(D)
+template isDevice(Dev)
 {
-	enum isDevice = isSource!D && isSink!D;
+    enum isDevice = .isDevice!(Dev, DeviceElementType!Dev);
+}
+/// ditto
+template isDevice(Dev, E)
+{
+    enum isDevice = isSource!(Dev, E) && isSink!(Dev, E);
+}
+
+/**
+Retruns element type of device.
+*/
+template DeviceElementType(Dev)
+{
+    import std.traits;
+
+    static if (is(ParameterTypeTuple!(typeof(Dev.init.pull)) PullArgs))
+    {
+        alias Unqual!(ForeachType!(PullArgs[0])) DeviceElementType;
+    }
+    else static if (is(typeof(Dev.init.available) AvailableType))
+    {
+        alias Unqual!(ForeachType!AvailableType) DeviceElementType;
+    }
+    else static if (is(ParameterTypeTuple!(typeof(Dev.init.push)) PushArgs))
+    {
+        alias Unqual!(ForeachType!(PushArgs[0])) DeviceElementType;
+    }
 }
