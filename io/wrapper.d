@@ -1,5 +1,16 @@
 /*
 This module provides thin wrappers of std.stdio.writef?(ln)? family.
+
+Example:
+---
+long num;
+write("num>"), readf("%s\r\n", &num);
+writefln("num = %s\n", num);
+
+string str;
+write("str>"), readf("%s\r\n", &str);
+writefln("str = [%(%02X %)]", str);
+---
  */
 module io.wrapper;
 
