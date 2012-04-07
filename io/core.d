@@ -613,14 +613,15 @@ template Ranged(Dev)
         this(Dev d)
         {
             device = d;
-          static if (isPool!Dev)
-            eof = !device.fetch();
         }
 
       static if (isPool!Dev)
       {
-        @property bool empty() const
+        @property bool empty()
         {
+            /* Delay fetching until we really need inputs. */
+            if (device.available.length == 0)
+                eof = !device.fetch();
             return eof;
         }
         @property E front()

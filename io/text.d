@@ -179,30 +179,28 @@ unittest
     /**
     Pre-defined text range interface for standard input, output, and error output.
     */
-    // We cannot define din in module, because range I/F requires
-    // that empty property is available after construction.
-  //typeof(typeof(stdin ).init  .buffered  .coerced!char.ranged) din;
+    typeof(typeof(stdin ).init  .buffered  .coerced!char.ranged) din;
     typeof(typeof(stdout).init/*.buffered*/.coerced!char.ranged) dout;  /// ditto
     typeof(typeof(stderr).init/*.buffered*/.coerced!char.ranged) derr;  /// ditto
 //}
 /*shared */static this()
 {
-    version(Windows)
-    {
-        stdin  = File(GetStdHandle(STD_INPUT_HANDLE )).sourced;
-        stdout = File(GetStdHandle(STD_OUTPUT_HANDLE)).sinked;
-        stderr = File(GetStdHandle(STD_ERROR_HANDLE )).sinked;
+  version(Windows)
+  {
+    stdin  = File(GetStdHandle(STD_INPUT_HANDLE )).sourced;
+    stdout = File(GetStdHandle(STD_OUTPUT_HANDLE)).sinked;
+    stderr = File(GetStdHandle(STD_ERROR_HANDLE )).sinked;
 
-      //din  = stdin   .buffered  .coerced!char.ranged;
-        dout = stdout/*.buffered*/.coerced!char.ranged;
-        derr = stderr/*.buffered*/.coerced!char.ranged;
-    }
+    din  = stdin   .buffered  .coerced!char.ranged;
+    dout = stdout/*.buffered*/.coerced!char.ranged;
+    derr = stderr/*.buffered*/.coerced!char.ranged;
+  }
 }
 static ~this()
 {
     derr.clear();
     dout.clear();
-  //din.clear();
+    din.clear();
 
     stderr.clear();
     stdout.clear();
