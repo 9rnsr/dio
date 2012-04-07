@@ -3,6 +3,9 @@ module io.socket;
 import std.socket;
 import std.typecons : scoped;
 
+/**
+Simple wrapper for $(D std.socket.TcpSocket) class.
+*/
 struct TcpSocket
 {
     std.socket.TcpSocket socket;

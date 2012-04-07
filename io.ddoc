@@ -93,7 +93,6 @@ function listanchors()
     <h1>$(TITLE)</h1>
     <div id=quickindex class=quickindex></div>
     $(BODY)
-    $(GOOGLE_FOOTER)
 </div>
 
 
@@ -146,9 +145,8 @@ NAVIGATION_PHOBOS=
     <h2>io</h2>
     $(UL
         $(LI <a href="io_core.html" title="">io.core</a>)
-        $(LI <a href="io_buffer.html" title="">io.buffer</a>)
-        $(LI <a href="io_filter.html" title="">io.filter</a>)
         $(LI <a href="io_file.html" title="">io.file</a>)
+        $(LI <a href="io_socket.html" title="">io.socket</a>)
         $(LI <a href="io_text.html" title="">io.text</a>)
     )
 </div>
