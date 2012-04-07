@@ -38,9 +38,6 @@ void writefln(Writer, T...)(Writer writer, T args)
     writef(writer, args, "\n");
 }
 
-
-
-
 /**
 Output $(D args) to $(D io.text.dout).
 */
@@ -67,4 +64,19 @@ void writefln(T...)(T args)
     if (!isOutputRange!(T[0], char) && T.length > 0)
 {
     writefln(dout, args);
+}
+
+/**
+*/
+uint readf(Reader, Data...)(Reader reader, in char[] format, Data data) if (isInputRange!Reader)
+{
+    return formattedRead(reader, format, data);
+}
+
+/**
+*/
+uint readf(Data...)(in char[] format, Data data)
+{
+    import std.format;
+    return readf(din, format, data);
 }
