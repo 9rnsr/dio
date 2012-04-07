@@ -218,6 +218,13 @@ template Sinked(Dev)
         {
             return device.push(buf);
         }
+/+
+      static if (is(typeof(device.flush())))
+        bool flush()
+        {
+            return device.flush();
+        }
+// +/
     }
 
     return Sinked(device);
@@ -568,6 +575,13 @@ template Coerced(E, Dev)
         {
             return device.seek(offset, whence);
         }
+/+
+      static if (is(typeof(device.flush())))
+        bool flush()
+        {
+            return device.flush();
+        }
+// +/
     }
 
     return Coerced(device);
@@ -714,7 +728,7 @@ template Ranged(Dev)
         {
             return device.flush();
         }
-+/
+// +/
     }
 
     return Ranged(device);

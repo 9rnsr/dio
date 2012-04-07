@@ -3,8 +3,10 @@ module io.file;
 import io.core;
 version(Windows)
 {
-  import core.sys.windows.windows, std.windows.syserror;
-  enum : uint { ERROR_BROKEN_PIPE = 109 }
+    import core.sys.windows.windows, std.windows.syserror;
+    enum : uint { ERROR_BROKEN_PIPE = 109 }
+
+    extern(Windows) BOOL FlushFileBuffers(HANDLE hFile);
 }
 
 debug
@@ -160,6 +162,13 @@ public:
             throw new Exception("push error");  //?
         }
     }
+
+/+
+    bool flush()
+    {
+        return FlushFileBuffers(hFile) != FALSE;
+    }
+// +/
 
     /**
     */
