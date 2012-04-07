@@ -18,8 +18,16 @@ unittest: unittest.exe
 unittest.exe: makefile $(SRCS) emptymain.d
 	dmd -unittest $(DFLAGS) $(SRCS) emptymain.d -ofunittest.exe
 
-rununittest: unittest.exe
+test\pipeinput.exe: test\pipeinput.d test\pipeinput.dat test\pipeinput.bat
+	@cd test
+	dmd pipeinput.d -I.. ..\io\core.d ..\io\text.d ..\io\file.d ..\io\wrapper.d
+	@cd ..
+
+rununittest: unittest.exe test\pipeinput.exe
 	unittest
+	@cd test
+	pipeinput.bat
+	@cd ..
 
 html: makefile $(DOCS) $(SRCS)
 
