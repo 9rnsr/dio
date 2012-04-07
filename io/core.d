@@ -316,6 +316,7 @@ template Buffered(Dev)
             else
             {
                 buf[0 .. av.length] = av[];
+                buf = buf[av.length .. $];
                 consume(av.length);
                 return fetch();
             }
@@ -344,7 +345,7 @@ template Buffered(Dev)
             device.seek(base_pos + ava_end, SeekPos.Set);
 
             auto v = buffer[ava_end .. $];
-            auto result =  device.pull(v);
+            auto result = device.pull(v);
             if (result)
             {
                 ava_end = buffer.length - v.length;
@@ -657,7 +658,12 @@ template Ranged(Dev)
                 auto c = device.available[0];
                 auto n = stride((&c)[0..1], 0);
                 if (n == 1)
+                {
+                    device.consume(1);
+                    front_ok = true;
+                    front_val = c;
                     return c;
+                }
 
                 Unqual!B[B.sizeof == 1 ? 6 : 2] ubuf;
                 Unqual!B[] buf = ubuf[0 .. n];
@@ -670,6 +676,7 @@ template Ranged(Dev)
             else
             {
                 front_val = device.available[0];
+                device.consume(1);
             }
             front_ok = true;
             return front_val;
@@ -679,7 +686,7 @@ template Ranged(Dev)
         }
         void popFront()
         {
-            device.consume(1);
+            //device.consume(1);
             front_ok = false;
         }
       }
