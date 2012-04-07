@@ -461,7 +461,8 @@ template Buffered(Dev)
         }
     }
 
-    return Buffered(device, bufferSize);
+    import std.typecons;
+    return RefCounted!Buffered(device, bufferSize);
 }
 
 version(unittest)
