@@ -79,7 +79,7 @@ void writefln(T...)(T args)
 
 /**
 */
-uint readf(Reader, Data...)(Reader reader, in char[] format, Data data) if (isInputRange!Reader)
+uint readf(Reader, Data...)(ref Reader reader, in char[] format, Data data) if (isInputRange!Reader)
 {
     import std.format;
     return formattedRead(reader, format, data);

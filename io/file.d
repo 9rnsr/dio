@@ -11,7 +11,7 @@ version(Windows)
 
 debug
 {
-  import std.stdio : writeln, writefln;
+    import std.stdio : writeln, writefln;
 }
 
 /**
@@ -214,4 +214,45 @@ unittest
     assert(buf.length == 64);
     debug std.stdio.writefln("buf = [%(%02x %)]\n", buf);
     assert(startsWith(buf, "module io.file;\n"));
+}
+
+
+/**
+Wrapping array with $(I source) interface.
+*/
+struct ArraySource(E)
+{
+    const(E)[] array;
+
+    bool pull(ref E[] buf)
+    {
+        if (array.length == 0)
+            return false;
+        if (buf.length <= array.length)
+        {
+            buf[] = array[0 .. buf.length];
+            array = array[buf.length .. $];
+            buf = buf[$ .. $];
+        }
+        else
+        {
+            buf[0 .. array.length] = array[];
+            buf = buf[array.length .. $];
+            array = array[$ .. $];
+        }
+        return true;
+    }
+}
+
+unittest
+{
+    import io.wrapper;
+
+    auto r = ArraySource!char("10\r\ntest\r\n").buffered.ranged;
+    long num;
+    string str;
+    readf(r, "%s\r\n", &num);
+    readf(r, "%s\r\n", &str);
+    assert(num == 10);
+    assert(str == "test");
 }
