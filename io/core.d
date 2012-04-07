@@ -114,6 +114,12 @@ template isDevice(Dev)
 Disable sink interface of $(D device).
 If $(D device) has pool interface, keep it.
 */
+template Sourced(Dev)
+{
+    alias typeof((Dev* d = null){ return (*d).sourced; }()) Sourced;
+}
+
+/// ditto
 @property auto sourced(Dev)(Dev device)
     if (isSource!Dev && isSink!Dev)
 {
@@ -187,6 +193,12 @@ unittest
 /**
 Disable source interface of $(D device).
 */
+template Sinked(Dev)
+{
+    alias typeof((Dev* d = null){ return (*d).sinked; }()) Sinked;
+}
+
+/// ditto
 @property auto sinked(Dev)(Dev device)
     if (isSource!Dev && isSink!Dev)
 {
@@ -242,6 +254,12 @@ unittest
 
 /**
 */
+template Buffered(Dev)
+{
+    alias typeof((Dev* d){ return (*d).buffered; }()) Buffered;
+}
+
+/// ditto
 @property auto buffered(Dev)(Dev device, size_t bufferSize = 4096)
     if (isSource!Dev || isSink!Dev)
 {
@@ -455,6 +473,12 @@ unittest
 Change device element type from $(D ubyte) to $(D E).
 While device operation, remain bytes are cached.
 */
+template Coerced(E, Dev)
+{
+    alias typeof((Dev* d = null){ return (*d).coerced!E; }()) Coerced;
+}
+
+/// ditto
 @property auto coerced(E, Dev)(Dev device)
     if ((isSource!Dev || isSink!Dev) &&
         is(DeviceElementType!Dev == ubyte))
@@ -568,6 +592,12 @@ Generate possible range interface from $(D device).
 If $(D device) is a $(I pool), input range interface is available.
 If $(D device) is a $(I sink), output range interface is available.
 */
+template Ranged(Dev)
+{
+    alias typeof((Dev* d = null){ return (*d).ranged; }()) Ranged;
+}
+
+/// ditto
 @property auto ranged(Dev)(Dev device)
     if (isPool!Dev || isSink!Dev)
 {
@@ -598,7 +628,7 @@ If $(D device) is a $(I sink), output range interface is available.
             while (device.available.length == 0 && !eof)
                 eof = !device.fetch();
             if (eof)
-            	throw new Exception("Unexpected failure of fetching value form underlying device");
+                throw new Exception("Unexpected failure of fetching value form underlying device");
             return device.available[0];
         }
         void popFront()
