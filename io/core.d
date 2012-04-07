@@ -593,15 +593,20 @@ If $(D device) is a $(I sink), output range interface is available.
         {
             return eof;
         }
-        @property inout(E) front() inout
+        @property E front()
         {
+            while (device.available.length == 0 && !eof)
+                eof = !device.fetch();
+            if (eof)
+            	throw new Exception("Unexpected failure of fetching value form underlying device");
             return device.available[0];
         }
         void popFront()
         {
             device.consume(1);
-            if (device.available.length == 0)
+            while (device.available.length == 0 && !eof)
                 eof = !device.fetch();
+            assert(eof || device.available.length > 0);
         }
       }
 
@@ -620,6 +625,13 @@ If $(D device) is a $(I sink), output range interface is available.
             }
         }
       }
+/+
+      static if (is(typeof(device.flush())))
+        bool flush()
+        {
+            return device.flush();
+        }
++/
     }
 
     return Ranged(device);
