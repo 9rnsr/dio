@@ -20,7 +20,7 @@ import std.range : isInputRange, isOutputRange, put;
 /**
 Output $(D args) to $(D writer).
 */
-void write(Writer, T...)(Writer writer, T args)
+void write(Writer, T...)(ref Writer writer, T args)
     if (isOutputRange!(Writer, dchar) && T.length > 0)
 {
     import std.conv;
@@ -30,20 +30,20 @@ void write(Writer, T...)(Writer writer, T args)
     }
 }
 /// ditto
-void writef(Writer, T...)(Writer writer, T args)
+void writef(Writer, T...)(ref Writer writer, T args)
     if (isOutputRange!(Writer, dchar) && T.length > 0)
 {
     import std.format;
     formattedWrite(writer, args);
 }
 /// ditto
-void writeln(Writer, T...)(Writer writer, T args)
+void writeln(Writer, T...)(ref Writer writer, T args)
     if (isOutputRange!(Writer, dchar))
 {
     write(writer, args, "\n");
 }
 /// ditto
-void writefln(Writer, T...)(Writer writer, T args)
+void writefln(Writer, T...)(ref Writer writer, T args)
     if (isOutputRange!(Writer, dchar) && T.length > 0)
 {
     writef(writer, args, "\n");
