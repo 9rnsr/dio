@@ -603,11 +603,17 @@ template Ranged(Dev)
 {
     static struct Ranged
     {
+        import std.traits;
     private:
-        alias DeviceElementType!Dev E;
+        alias DeviceElementType!Dev B;
+        static if (is(Unqual!B == char) || is(Unqual!B == wchar))
+            alias dchar E;
+        else
+            alias B E;
 
         Dev device;
         bool eof;
+        E front_val; bool front_ok;
 
     public:
         this(Dev d)
@@ -619,25 +625,47 @@ template Ranged(Dev)
       {
         @property bool empty()
         {
-            /* Delay fetching until we really need inputs. */
-            if (device.available.length == 0)
+            /* Block in here if device is console */
+            while (device.available.length == 0 && !eof)
                 eof = !device.fetch();
+            assert(eof || device.available.length > 0);
             return eof;
         }
         @property E front()
         {
-            while (device.available.length == 0 && !eof)
-                eof = !device.fetch();
-            if (eof)
-                throw new Exception("Unexpected failure of fetching value form underlying device");
-            return device.available[0];
+            if (front_ok)
+                return front_val;
+
+            static if (is(Unqual!B == char) || is(Unqual!B == wchar))
+            {
+                import std.utf;
+                auto c = device.available[0];
+                auto n = stride((&c)[0..1], 0);
+                if (n == 1)
+                    return c;
+
+                Unqual!B[B.sizeof == 1 ? 6 : 2] ubuf;
+                Unqual!B[] buf = ubuf[0 .. n];
+                while (buf.length > 0 && device.pull(buf)) {}
+                if (buf.length)
+                    goto err;
+                size_t i = 0;
+                front_val = decode(ubuf[0 .. n], i);
+            }
+            else
+            {
+                front_val = device.available[0];
+            }
+            front_ok = true;
+            return front_val;
+
+        err:
+            throw new Exception("Unexpected failure of fetching value form underlying device");
         }
         void popFront()
         {
             device.consume(1);
-            while (device.available.length == 0 && !eof)
-                eof = !device.fetch();
-            assert(eof || device.available.length > 0);
+            front_ok = false;
         }
       }
 
@@ -649,10 +677,34 @@ template Ranged(Dev)
         }
         void put(const(E)[] data)
         {
-            while (data.length > 0)
+            import std.utf;
+            static if (is(Unqual!B == char))
             {
-                if (!device.push(data))
-                    throw new Exception("");
+                foreach (c; data)
+                {
+                    char[4] u8buf;
+                    const(char)[] buf = u8buf[0 .. encode(u8buf, c)];
+                    if (!device.push(buf))
+                        throw new Exception("");
+                }
+            }
+            else static if (is(Unqual!B == char))
+            {
+                foreach (c; data)
+                {
+                    wchar[2] u16buf;
+                    wchar[] buf = u16buf[0 .. encode(u16buf, c)];
+                    if (!device.push(buf))
+                        throw new Exception("");
+                }
+            }
+            else
+            {
+                while (data.length > 0)
+                {
+                    if (!device.push(data))
+                        throw new Exception("");
+                }
             }
         }
       }

@@ -111,6 +111,12 @@ public:
     {
         DWORD size = void;
         debug std.stdio.writefln("ReadFile : buf.ptr=%08X, len=%s", cast(uint)buf.ptr, buf.length);
+
+        // Check console input is empty
+        DWORD evcnt;
+        if (GetNumberOfConsoleInputEvents(hFile, &evcnt) && evcnt == 0)
+            return true;
+
         if (ReadFile(hFile, buf.ptr, buf.length, &size, null))
         {
             debug(File)
