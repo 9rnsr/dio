@@ -1,1 +1,1 @@
-type pipeinput.dat | pipeinput.exe
+type test\pipeinput.dat | test\pipeinput.exe

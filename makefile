@@ -1,5 +1,12 @@
-SRCS=io\core.d io\file.d io\socket.d io\buffer.d io\filter.d io\text.d io\wrapper.d
-DFLAGS=-property -w
+SRCS=io\core.d \
+	io\file.d \
+	io\socket.d \
+	io\buffer.d \
+	io\filter.d \
+	io\text.d \
+	io\wrapper.d
+
+DFLAGS=-property -w -I.
 
 DDOCDIR=html\d
 DOCS=\
@@ -13,21 +20,35 @@ DOCS=\
 DDOC=io.ddoc
 DDOCFLAGS=-D -Dd$(DDOCDIR) -c -o- $(DFLAGS)
 
-unittest: unittest.exe
+IOLIB=lib\io.lib
 
-unittest.exe: makefile $(SRCS) emptymain.d
-	dmd -unittest $(DFLAGS) $(SRCS) emptymain.d -ofunittest.exe
 
-test\pipeinput.exe: test\pipeinput.d test\pipeinput.dat test\pipeinput.bat
-	@cd test
-	dmd pipeinput.d -I.. ..\io\core.d ..\io\text.d ..\io\file.d ..\io\wrapper.d
-	@cd ..
+# lib
 
-rununittest: unittest.exe test\pipeinput.exe
-	unittest
-	@cd test
-	pipeinput.bat
-	@cd ..
+lib: $(IOLIB)
+$(IOLIB): $(SRCS)
+	mkdir lib
+	dmd -lib -of$(IOLIB) $(SRCS)
+
+clean:
+	del lib\*.lib
+	del test\*.obj
+	del test\*.exe
+
+
+# test
+
+runtest: lib test\unittest.exe test\pipeinput.exe
+	test\unittest.exe
+	test\pipeinput.bat
+
+test\unittest.exe: emptymain.d $(SRCS)
+	dmd $(DFLAGS) -of$@ -unittest emptymain.d $(SRCS)
+test\pipeinput.exe: test\pipeinput.d test\pipeinput.dat test\pipeinput.bat lib
+	dmd $(DFLAGS) -of$@ test\pipeinput.d $(IOLIB)
+
+
+# ddoc
 
 html: makefile $(DOCS) $(SRCS)
 
