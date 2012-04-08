@@ -229,10 +229,10 @@ template structuralCast(To...)
     }
 }
 
-//alias structuralUpCast adaptTo;
-//alias structuralDownCast getAdapted;
-alias structuralCast adaptTo;
-alias structuralCast getAdapted;
+alias structuralUpCast adaptTo;
+alias structuralDownCast getAdapted;
+//alias structuralCast adaptTo;
+//alias structuralCast getAdapted;
 
 unittest
 {
