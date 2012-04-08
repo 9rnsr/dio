@@ -78,8 +78,8 @@ private template AdaptTo(Targets...)
             static if (k == -1)
                 alias Sequence!() InheritsSrcFnFrom;
             else
-                alias Sequence!(SrcFuns[k]) InheritsSrcFnFrom;
-                //alias Sequence!(TgtFuns[i]) InheritsSrcFnFrom;
+                //alias Sequence!(SrcFuns[k]) InheritsSrcFnFrom;
+                alias Sequence!(TgtFuns[i]) InheritsSrcFnFrom;
         }
         alias staticMap!(
             TypeOf,
@@ -426,20 +426,20 @@ unittest
     }
     static class A
     {
-        int draw(){ return 10; }            // covariant return types
-        int reflesh()const{ return 20; }    // covariant storage classes
+        int draw() { return 10; }           // covariant return types
+        int reflesh() const { return 20; }  // covariant storage classes
     }
 
     auto a = new A();
-    //auto d = adaptTo!Drawable(a); // supports return-typ/storage-class covariance
-    //assert(d.draw() == 10);
-    //assert(d.reflesh() == 20);
-/+  static assert(isCovariantWith!(typeof(A.draw), typeof(Drawable.draw)));
+    auto d = adaptTo!Drawable(a); // supports return-type/storage-class covariance
+    assert(d.draw() == 10);
+    assert(d.reflesh() == 20);
+
+    static assert(isCovariantWith!(typeof(A.draw), typeof(Drawable.draw)));
     static assert(is(typeof(a.draw()) == int));
     static assert(is(typeof(d.draw()) == long));
 
     static assert(isCovariantWith!(typeof(A.reflesh), typeof(Drawable.reflesh)));
     static assert( is(typeof(a.reflesh) == const));
     static assert(!is(typeof(d.reflesh) == const));
-+/
 }
