@@ -4,7 +4,10 @@ SRCS=io\core.d \
 	io\buffer.d \
 	io\filter.d \
 	io\text.d \
-	io\wrapper.d
+	io\wrapper.d \
+	util\typecons.d \
+	util\meta.d \
+	util\metastrings_expand.d
 
 DFLAGS=-property -w -I.
 
