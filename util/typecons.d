@@ -23,7 +23,7 @@ alias util.meta.isSame isSame;
 
 /*private*/ interface Structural
 {
-    Object _getSource();
+    Object _AdaptTo_getSource();
 }
 
 private template isInterface(T)
@@ -99,7 +99,7 @@ private template AdaptTo(Targets...)
 
         this(S s){ source = s; }
 
-        final Object _getSource()
+        final Object _AdaptTo_getSource()
         {
             return cast(Object)source;
         }
@@ -185,7 +185,7 @@ template structuralDownCast(D)
             {
                 if (auto a = cast(Structural)o)
                 {
-                    auto d = cast(D)(o = a._getSource());
+                    auto d = cast(D)(o = a._AdaptTo_getSource());
                     if (d)
                         return d;
                 }
@@ -300,8 +300,6 @@ unittest
     static class A
     {
         int draw(){ return 10; }
-        //Object _getSource();
-        //limitation : can't contain this name
     }
     static class AA : A
     {
