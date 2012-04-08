@@ -38,7 +38,19 @@ private template AdaptTo(Targets...)
     {
         template Impl(string name)
         {
-            alias Sequence!(__traits(getVirtualFunctions, T, name)) Impl;
+            template RejectStaticFinal(alias F)
+            {
+                static if (__traits(isStaticFunction, F) || __traits(isFinalFunction, F))
+                    alias Sequence!() RejectStaticFinal;
+                else
+                    alias Sequence!(F) RejectStaticFinal;
+            }
+
+            // ugly workaround...?
+            static if ((name.length >= 2 && name[0..2] == "__") || name == "this")
+                alias Sequence!() Impl;
+            else
+                alias staticMap!(RejectStaticFinal, __traits(getOverloads, T, name)) Impl;
         }
 
         alias staticMap!(Impl, Sequence!(__traits(allMembers, T))) VirtualFunctionsOf;
@@ -93,12 +105,21 @@ private template AdaptTo(Targets...)
             CovariantSignatures!S.length == TgtFuns.length;
     }
 
-    class AdaptedImpl(S) : Structural
+    template BaseImpl(S)
+    {
+        static if (is(S == class) || is(S == interface))
+            alias Structural BaseImpl;
+        else
+            alias Object BaseImpl;
+    }
+
+    class AdaptedImpl(S) : BaseImpl!S
     {
         S source;
 
         this(S s){ source = s; }
 
+      static if (is(S == class) || is(S == interface))
         final Object _AdaptTo_getSource()
         {
             return cast(Object)source;
@@ -440,4 +461,19 @@ unittest
     static assert(isCovariantWith!(typeof(A.reflesh), typeof(Drawable.reflesh)));
     static assert( is(typeof(a.reflesh) == const));
     static assert(!is(typeof(d.reflesh) == const));
+}
+
+unittest
+{
+    struct S
+    {
+        void func(){}
+    }
+    interface X
+    {
+        void func();
+    }
+
+    S s;
+    auto x = adaptTo!X(s);
 }
