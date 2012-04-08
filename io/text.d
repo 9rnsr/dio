@@ -172,28 +172,30 @@ unittest
     /**
     Pre-defined devices for standard input, output, and error output.
     */
-    typeof(File.init.sourced) stdin;
-    typeof(File.init.sinked ) stdout;   /// ditto
-    typeof(File.init.sinked ) stderr;   /// ditto
+    SourceDevice!ubyte stdin;
+      SinkDevice!ubyte stdout;  /// ditto
+      SinkDevice!ubyte stderr;  /// ditto
 
     /**
     Pre-defined text range interface for standard input, output, and error output.
     */
-    typeof(typeof(stdin ).init  .buffered  .coerced!char.ranged) din;
-    typeof(typeof(stdout).init/*.buffered*/.coerced!char.ranged) dout;  /// ditto
-    typeof(typeof(stderr).init/*.buffered*/.coerced!char.ranged) derr;  /// ditto
+     InputRange!dchar din;
+    OutputRange!dchar dout;     /// ditto
+    OutputRange!dchar derr;     /// ditto
 //}
 /*shared */static this()
 {
+    import util.typecons;
+
   version(Windows)
   {
-    stdin  = File(GetStdHandle(STD_INPUT_HANDLE )).sourced;
-    stdout = File(GetStdHandle(STD_OUTPUT_HANDLE)).sinked;
-    stderr = File(GetStdHandle(STD_ERROR_HANDLE )).sinked;
+    stdin  = adaptTo!(SourceDevice!ubyte)(File(GetStdHandle(STD_INPUT_HANDLE )).sourced);
+    stdout = adaptTo!(  SinkDevice!ubyte)(File(GetStdHandle(STD_OUTPUT_HANDLE)).sinked);
+    stderr = adaptTo!(  SinkDevice!ubyte)(File(GetStdHandle(STD_ERROR_HANDLE )).sinked);
 
-    din  = stdin   .buffered  .coerced!char.ranged;
-    dout = stdout/*.buffered*/.coerced!char.ranged;
-    derr = stderr/*.buffered*/.coerced!char.ranged;
+    din  =  inputRangeObject      (stdin   .buffered  .coerced!char.ranged);
+    dout = outputRangeObject!dchar(stdout/*.buffered*/.coerced!char.ranged);
+    derr = outputRangeObject!dchar(stderr/*.buffered*/.coerced!char.ranged);
   }
 }
 static ~this()
