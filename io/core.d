@@ -111,6 +111,41 @@ template isDevice(Dev)
 
 
 /**
+Provides runtime $(I source) interface.
+*/
+interface SourceDevice(E)
+{
+    bool pull(ref E[] buf);
+}
+
+/**
+Provides runtime $(I pool) interface.
+*/
+interface PoolDevice(E) : SourceDevice!E
+{
+    bool fetch();
+    @property const(E)[] available() const;
+    void consume(size_t n);
+}
+
+/**
+Provides runtime $(I sink) interface.
+*/
+interface SinkDevice(E)
+{
+    bool push(ref const(E)[] buf);
+}
+
+/**
+Provides runtime seekable interface.
+*/
+interface SeekableDevice
+{
+    ulong seek(long offset, SeekPos whence);
+}
+
+
+/**
 Disable sink interface of $(D device).
 If $(D device) has pool interface, keep it.
 */
