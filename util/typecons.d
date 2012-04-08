@@ -26,13 +26,27 @@ alias util.meta.isSame isSame;
     Object _getSource();
 }
 
+private template isInterface(T)
+{
+    enum isInterface = is(T == interface);
+}
+
 private template AdaptTo(Targets...)
     if (allSatisfy!(isInterface, Targets))
 {
+    template VirtualFunctionsOf(T)
+    {
+        template Impl(string name)
+        {
+            alias Sequence!(__traits(getVirtualFunctions, T, name)) Impl;
+        }
+
+        alias staticMap!(Impl, Sequence!(__traits(allMembers, T))) VirtualFunctionsOf;
+    }
     alias staticUniq!(staticMap!(VirtualFunctionsOf, Targets)) TgtFuns;
 
-    alias util.meta.NameOf NameOf;
-    alias util.meta.TypeOf TypeOf;
+    template NameOf(alias a) { enum NameOf = __traits(identifier, a); }
+    template TypeOf(alias a) { alias typeof(a) TypeOf; }
 
     template CovariantSignatures(S)
     {
@@ -55,30 +69,28 @@ private template AdaptTo(Targets...)
         {
             alias staticCartesian!(Wrap!SrcFuns, Wrap!(TgtFuns[i])) Cartesian;
 
-            enum int j_ = staticIndexOfIf!(isExactMatch, Cartesian);
-            static if( j_ == -1 )
-                enum int j = staticIndexOfIf!(isCovariantMatch, Cartesian);
+            enum int j = staticIndexOfIf!(isExactMatch, Cartesian);
+            static if (j == -1)
+                enum int k = staticIndexOfIf!(isCovariantMatch, Cartesian);
             else
-                enum int j = j_;
+                enum int k = j;
 
-            static if( j == -1 )
-                alias Sequence!() Result;
+            static if (k == -1)
+                alias Sequence!() InheritsSrcFnFrom;
             else
-                alias Sequence!(SrcFuns[j]) Result;
+                alias Sequence!(SrcFuns[k]) InheritsSrcFnFrom;
+                //alias Sequence!(TgtFuns[i]) InheritsSrcFnFrom;
         }
         alias staticMap!(
             TypeOf,
-            staticMap!(
-                Instantiate!InheritsSrcFnFrom.Returns!"Result",
-                staticIota!(0, TgtFuns.length) //workaround @@@BUG4333@@@
-            )
-        ) Result;
+            staticMap!(InheritsSrcFnFrom, staticIota!(0, TgtFuns.length))
+        ) CovariantSignatures;
     }
 
     template hasRequireMethods(S)
     {
         enum hasRequireMethods =
-            CovariantSignatures!S.Result.length == TgtFuns.length;
+            CovariantSignatures!S.length == TgtFuns.length;
     }
 
     class AdaptedImpl(S) : Structural
@@ -95,7 +107,7 @@ private template AdaptTo(Targets...)
     final class Impl(S) : AdaptedImpl!S, Targets
     {
     private:
-        alias CovariantSignatures!S.Result CoTypes;
+        alias CovariantSignatures!S CoTypes;
 
         this(S s){ super(s); }
 
@@ -111,10 +123,7 @@ private template AdaptTo(Targets...)
                 );
             `;
         }
-        mixin mixinAll!(
-            staticMap!(
-                generateFun,
-                staticIota!(0, TgtFuns.length)));   //workaround @@@BUG4333@@@
+        mixin mixinAll!(staticMap!(generateFun, staticIota!(0, TgtFuns.length)));
     }
 }
 

@@ -229,29 +229,17 @@ unittest
  */
 template staticIndexOf(E, seq...)
 {
-    static if (staticFind!(E, seq).length == 0)
-    {
-        enum /*sizediff_t*/ staticIndexOf = -1;
-    }
-    else
-    {
-        enum /*sizediff_t*/ staticIndexOf = (seq.length -
-                                         staticFind!(E, seq).length);
-    }
+    enum n = staticFind!(E, seq).length;
+
+    enum staticIndexOf = n == 0 ? -1 : seq.length - n;
 }
 
 /// ditto
 template staticIndexOf(alias E, seq...)
 {
-    static if (staticFind!(E, seq).length == 0)
-    {
-        enum /*sizediff_t*/ staticIndexOf = -1;
-    }
-    else
-    {
-        enum /*sizediff_t*/ staticIndexOf = (seq.length -
-                                         staticFind!(E, seq).length);
-    }
+    enum n = staticFind!(E, seq).length;
+
+    enum staticIndexOf = n == 0 ? -1 : seq.length - n;
 }
 
 unittest
@@ -419,42 +407,37 @@ template staticSort(alias comp, seq...)
     }
     else
     {
-         alias _staticMerger!comp.Merge!(staticSort!(comp, seq[ 0  .. $/2]))
-                                  .With!(staticSort!(comp, seq[$/2 ..  $ ]))
-               staticSort;
-    }
-}
-
-private template _staticMerger(alias comp)
-{
-    template Merge()
-    {
-        template With(B...)
+        template Merge()
         {
-            alias B With;
-        }
-    }
-
-    template Merge(A...)
-    {
-        template With()
-        {
-            alias A With;
-        }
-
-        template With(B...)
-        {
-            static if (Instantiate!comp.With!(B[0], A[0]))
+            template With(B...)
             {
-                alias Sequence!(B[0], Merge!(A        )
-                                      .With!(B[1 .. $])) With;
-            }
-            else
-            {
-                alias Sequence!(A[0], Merge!(A[1 .. $])
-                                      .With!(B       )) With;
+                alias B With;
             }
         }
+        template Merge(A...)
+        {
+            template With()
+            {
+                alias A With;
+            }
+
+            template With(B...)
+            {
+                static if (Instantiate!comp.With!(B[0], A[0]))
+                {
+                    alias Sequence!(B[0], Merge!(A        )
+                                          .With!(B[1 .. $])) With;
+                }
+                else
+                {
+                    alias Sequence!(A[0], Merge!(A[1 .. $])
+                                          .With!(B       )) With;
+                }
+            }
+        }
+
+         alias Merge!(staticSort!(comp, seq[ 0  .. $/2]))
+               .With!(staticSort!(comp, seq[$/2 ..  $ ])) staticSort;
     }
 }
 
@@ -494,48 +477,42 @@ template staticUniqSort(alias comp, seq...)
     }
     else
     {
-        alias _staticUniqMerger!comp
-                    .Merge!(staticUniqSort!(comp, seq[ 0  .. $/2]))
-                     .With!(staticUniqSort!(comp, seq[$/2 ..  $ ]))
-              staticUniqSort;
-    }
-}
-
-private template _staticUniqMerger(alias comp)
-{
-    template Merge()
-    {
-        template With(B...)
+        template Merge()
         {
-            alias B With;
-        }
-    }
-
-    template Merge(A...)
-    {
-        template With()
-        {
-            alias A With;
-        }
-
-        template With(B...)
-        {
-            static if (Instantiate!comp.With!(A[0], B[0]))
+            template With(B...)
             {
-                alias Sequence!(A[0], Merge!(A[1 .. $])
-                                      .With!(B[0 .. $])) With;
-            }
-            else static if (Instantiate!comp.With!(B[0], A[0]))
-            {
-                alias Sequence!(B[0], Merge!(A[0 .. $])
-                                      .With!(B[1 .. $])) With;
-            }
-            else
-            {
-                alias Merge!(A[0 .. $])
-                      .With!(B[1 .. $]) With;
+                alias B With;
             }
         }
+        template Merge(A...)
+        {
+            template With()
+            {
+                alias A With;
+            }
+
+            template With(B...)
+            {
+                static if (Instantiate!comp.With!(A[0], B[0]))
+                {
+                    alias Sequence!(A[0], Merge!(A[1 .. $])
+                                          .With!(B[0 .. $])) With;
+                }
+                else static if (Instantiate!comp.With!(B[0], A[0]))
+                {
+                    alias Sequence!(B[0], Merge!(A[0 .. $])
+                                          .With!(B[1 .. $])) With;
+                }
+                else
+                {
+                    alias Merge!(A[0 .. $])
+                          .With!(B[1 .. $]) With;
+                }
+            }
+        }
+
+        alias Merge!(staticUniqSort!(comp, seq[ 0  .. $/2]))
+              .With!(staticUniqSort!(comp, seq[$/2 ..  $ ])) staticUniqSort;
     }
 }
 
@@ -684,16 +661,15 @@ template staticStride(size_t n, seq...)
         }
         else
         {
-            alias Sequence!(staticStride!(n, seq[0 .. _strideMid!($, n)]),
-                            staticStride!(n, seq[_strideMid!($, n) .. $]))
-                  staticStride;
+            template mid(size_t n, size_t k)
+            {
+                enum mid = ((n + k - 1) / k / 2) * k;
+            }
+
+            alias Sequence!(staticStride!(n, seq[0 .. mid!($, n)]),
+                            staticStride!(n, seq[mid!($, n) .. $])) staticStride;
         }
     }
-}
-
-private template _strideMid(size_t n, size_t k)
-{
-    enum _strideMid = ((n + k - 1) / k / 2) * k;
 }
 
 unittest
@@ -739,13 +715,6 @@ unittest
  */
 template staticZip(tuples...)
 {
-    alias staticMap!(_ZipTransverser!tuples,
-                     staticIota!(0, _minLength!tuples))
-          staticZip;
-}
-
-private
-{
     template _ZipTransverser(tuples...)
     {
         template _ZipTransverser(size_t i)
@@ -762,6 +731,9 @@ private
             alias staticMost!(q{ a < b }, staticMap!(q{ a.length }, tuples))
                   _minLength;
     }
+
+    alias staticMap!(_ZipTransverser!tuples,
+                     staticIota!(0, _minLength!tuples)) staticZip;
 }
 
 unittest
@@ -779,46 +751,43 @@ template staticPermutations(seq...)
     }
     else
     {
+        template _staticPermutations(size_t k, seq...)
+            if (k == 0)
+        {
+            alias Sequence!(metaArray!()) Result;
+        }
+
+        template _staticPermutations(size_t k, seq...)
+            if (k == 1)
+        {
+            alias staticMap!(metaArray, seq) Result;
+        }
+
+        template _staticPermutations(size_t k, seq...)
+            if (k >= 2)
+        {
+            template consLater(car...)
+            {
+                template consLater(alias wrap)
+                {
+                    alias Wrap.insertFront!car consLater;
+                }
+            }
+
+            template consMapAt(size_t i)
+            {
+                alias staticMap!(consLater!(seq[i]),
+                                _staticPermutations!(k - 1,
+                                                     seq[  0   .. i],
+                                                     seq[i + 1 .. $]).Result)
+                      consMapAt;
+            }
+
+            alias staticMap!(consMapAt, staticIota!(seq.length)) Result;
+        }
+
         alias _staticPermutations!(seq.length, seq).Result
                staticPermutations;
-    }
-}
-
-private
-{
-    template _staticPermutations(size_t k, seq...)
-        if (k == 0)
-    {
-        alias Sequence!(metaArray!()) Result;
-    }
-
-    template _staticPermutations(size_t k, seq...)
-        if (k == 1)
-    {
-        alias staticMap!(metaArray, seq) Result;
-    }
-
-    template _staticPermutations(size_t k, seq...)
-        if (k >= 2)
-    {
-        template consLater(car...)
-        {
-            template consLater(alias wrap)
-            {
-                alias Wrap.insertFront!car consLater;
-            }
-        }
-
-        template consMapAt(size_t i)
-        {
-            alias staticMap!(consLater!(seq[i]),
-                            _staticPermutations!(k - 1,
-                                                 seq[  0   .. i],
-                                                 seq[i + 1 .. $]).Result)
-                  consMapAt;
-        }
-
-        alias staticMap!(consMapAt, staticIota!(seq.length)) Result;
     }
 }
 
@@ -831,11 +800,6 @@ unittest
  */
 template staticCombinations(size_t k, seq...)
     if (k <= seq.length)
-{
-    alias _staticCombinations!(k, seq).Result staticCombinations;
-}
-
-private
 {
     template _staticCombinations(size_t k, seq...)
         if (k == 0)
@@ -870,6 +834,8 @@ private
 
         alias staticMap!(consMapFrom, staticIota!(seq.length)) Result;
     }
+
+    alias _staticCombinations!(k, seq).Result staticCombinations;
 }
 
 version(unittest)
@@ -887,11 +853,6 @@ version(unittest)
  */
 template staticCartesian(tuples...)
     if (tuples.length >= 1)
-{
-    alias _staticCartesian!tuples.Result staticCartesian;
-}
-
-private
 {
     template _staticCartesian(alias wrap)
     {
@@ -917,6 +878,8 @@ private
 
         alias staticMap!(consMap, wrap.Expand) Result;
     }
+
+    alias _staticCartesian!tuples.Result staticCartesian;
 }
 
 version(unittest)
@@ -943,15 +906,15 @@ template staticIota(int beg, int end, int step = 1)
     }
     else
     {
-        alias Sequence!(staticIota!(beg, _iotaMid!(beg, end)     ),
-                        staticIota!(     _iotaMid!(beg, end), end))
+        private template mid(int beg, int end)
+        {
+            enum mid = beg + (end - beg) / 2;
+        }
+
+        alias Sequence!(staticIota!(beg, mid!(beg, end)     ),
+                        staticIota!(     mid!(beg, end), end))
               staticIota;
     }
-}
-
-private template _iotaMid(int beg, int end)
-{
-    enum _iotaMid = beg + (end - beg) / 2;
 }
 
 /// ditto
@@ -1171,41 +1134,40 @@ unittest
  */
 template templateFun(string expr)
 {
-    alias _templateFun!expr._ templateFun;
-}
-
-// XXX
-private template _templateFun(string expr)
-{
-    enum size_t maxArgs = ('z' - 'a' + 1);
-
-    template _(args...)
-        if (args.length <= maxArgs)
+    template _templateFun(string expr)
     {
-        alias invoke!args.result _;
-    }
+        enum size_t maxArgs = ('z' - 'a' + 1);
 
-    template invoke(args...)
-        if (args.length <= maxArgs)
-    {
-        mixin bind!(0, args);
-        mixin("alias Identity!(" ~ expr ~ ") result;");
-    }
-
-    template bind(size_t i, args...)
-    {
-        static if (i < args.length)
+        template _(args...)
+            if (args.length <= maxArgs)
         {
-            mixin("alias Identity!(args[i]) " ~ paramAt!i ~ ";");
-            mixin bind!(i + 1, args);
+            alias invoke!args.result _;
+        }
+
+        template invoke(args...)
+            if (args.length <= maxArgs)
+        {
+            mixin bind!(0, args);
+            mixin("alias Identity!(" ~ expr ~ ") result;");
+        }
+
+        template bind(size_t i, args...)
+        {
+            static if (i < args.length)
+            {
+                mixin("alias Identity!(args[i]) " ~ paramAt!i ~ ";");
+                mixin bind!(i + 1, args);
+            }
+        }
+
+        template paramAt(size_t i)
+            if (i < maxArgs)
+        {
+            enum dchar paramAt = ('a' + i);
         }
     }
 
-    template paramAt(size_t i)
-        if (i < maxArgs)
-    {
-        enum dchar paramAt = ('a' + i);
-    }
+    alias _templateFun!expr._ templateFun;
 }
 
 unittest
@@ -1609,50 +1571,19 @@ version(unittest)
 // Sequences
 //----------------------------------------------------------------------------//
 
-template VirtualFunctionsOfImpl(T, string name)
-{
-    alias Sequence!(__traits(getVirtualFunctions, T, name)) Result;
-}
-/**
-    does not reduce overloads
-    Parameter:
-        name :  specified member name.
-                if it is empty string, all of virtual-functions on T returns.
- */
-template VirtualFunctionsOf(T, string name="")
-{
-    static if (name == "")
-    {
-        alias staticMap!(
-            Instantiate!(
-                Instantiate!VirtualFunctionsOfImpl.bindFront!T
-            ).Returns!"Result",
-            Sequence!(__traits(allMembers, T))
-        ) VirtualFunctionsOf;
-    }
-    else
-    {
-        alias VirtualFunctionsOfImpl!(T, name).Result VirtualFunctionsOf;
-    }
-}
 
-
-private template staticIndexOfIfImpl(alias pred, seq...)
+template staticIndexOfIf(alias pred, seq...)
 {
     enum len = seq.length;
     enum len2 = staticFindIf!(pred, seq).length;
     static if (len2 == 0)
     {
-        enum int Result = -1;
+        enum int staticIndexOfIf = -1;
     }
     else
     {
-        enum int Result = len - len2;
+        enum int staticIndexOfIf = len - len2;
     }
-}
-template staticIndexOfIf(alias pred, seq...)
-{
-    enum staticIndexOfIf = staticIndexOfIfImpl!(pred, seq).Result;
 }
 
 
