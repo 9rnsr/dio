@@ -167,12 +167,104 @@ unittest
     assert(line == "module io.text;");
 }
 
+version(Windows)
+{
+    import core.sys.windows.windows, std.windows.syserror;
+
+    extern(Windows) DWORD GetFileType(HANDLE hFile);
+    enum uint FILE_TYPE_UNKNOWN = 0x0000;
+    enum uint FILE_TYPE_DISK    = 0x0001;
+    enum uint FILE_TYPE_CHAR    = 0x0002;
+    enum uint FILE_TYPE_PIPE    = 0x0003;
+    enum uint FILE_TYPE_REMOTE  = 0x8000;
+
+    struct ConsoleInput
+    {
+        bool pull(ref wchar[] buf)
+        {
+            DWORD size = void;
+            HANDLE hFile = GetStdHandle(STD_INPUT_HANDLE);
+            assert(GetFileType(hFile) == FILE_TYPE_CHAR);
+
+            if (ReadConsoleW(hFile, buf.ptr, buf.length, &size, null))
+            {
+                debug(File)
+                    std.stdio.writefln("pull ok : hFile=%08X, buf.length=%s, size=%s, GetLastError()=%s",
+                        cast(uint)hFile, buf.length, size, GetLastError());
+                debug(File)
+                    std.stdio.writefln("C buf[0 .. %d] = [%(%02X %)]", size, buf[0 .. size]);
+                buf = buf[size .. $];
+                return (size > 0);  // valid on only blocking read
+            }
+            else
+            {
+                switch (GetLastError())
+                {
+                    case ERROR_BROKEN_PIPE:
+                        return false;
+                    default:
+                        break;
+                }
+
+                debug(File)
+                    std.stdio.writefln("pull ng : hFile=%08X, size=%s, GetLastError()=%s",
+                        cast(uint)hFile, size, GetLastError());
+                throw new Exception("pull(ref buf[]) error");
+
+            //  // for overlapped I/O
+            //  eof = (GetLastError() == ERROR_HANDLE_EOF);
+            }
+        }
+    }
+
+    class StdInRange
+    {
+    private:
+        HANDLE hStdin;
+        InputRange!dchar input;
+        InputRange!dchar cin;
+
+        this()
+        {
+            cin = inputRangeObject(ConsoleInput().buffered.ranged);
+            checkHandle();
+        }
+
+        bool checkHandle()
+        {
+            HANDLE hFile = GetStdHandle(STD_INPUT_HANDLE);
+            if (hFile == hStdin)
+                return false;
+
+            hStdin = hFile;
+            if (GetFileType(hFile) == FILE_TYPE_CHAR)
+                input = cin;
+            else
+                input = inputRangeObject(File(hFile).buffered.coerced!char.ranged);
+            return true;
+        }
+
+    public:
+        /**
+        If we cannot read character from original device, check redirection.
+        */
+        bool empty()
+        {
+            if (!input.empty)
+                return false;
+
+            return checkHandle() ? input.empty : true;
+        }
+        alias input this;
+    }
+}
+
 //__gshared
 //{
-    /**
-    Pre-defined devices for standard input, output, and error output.
-    */
-    SourceDevice!ubyte stdin;
+    // /**
+    // Pre-defined devices for standard input, output, and error output.
+    // */
+    // SourceDevice!ubyte stdin;
       SinkDevice!ubyte stdout;  /// ditto
       SinkDevice!ubyte stderr;  /// ditto
 
@@ -189,11 +281,11 @@ unittest
 
   version(Windows)
   {
-    stdin  = adaptTo!(SourceDevice!ubyte)(File(GetStdHandle(STD_INPUT_HANDLE )).sourced);
+  //stdin  = adaptTo!(SourceDevice!ubyte)(File(GetStdHandle(STD_INPUT_HANDLE )).sourced);
     stdout = adaptTo!(  SinkDevice!ubyte)(File(GetStdHandle(STD_OUTPUT_HANDLE)).sinked);
     stderr = adaptTo!(  SinkDevice!ubyte)(File(GetStdHandle(STD_ERROR_HANDLE )).sinked);
 
-    din  =  inputRangeObject      (stdin   .buffered  .coerced!char.ranged);
+    din  = new StdInRange();// inputRangeObject      (stdin   .buffered  .coerced!char.ranged);
     dout = outputRangeObject!dchar(stdout/*.buffered*/.coerced!char.ranged);
     derr = outputRangeObject!dchar(stderr/*.buffered*/.coerced!char.ranged);
   }
@@ -206,5 +298,5 @@ static ~this()
 
     stderr.clear();
     stdout.clear();
-    stdin.clear();
+    //stdin.clear();
 }

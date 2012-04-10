@@ -19,8 +19,6 @@ File is seekable device.
 */
 struct File
 {
-    import std.utf;
-    import std.typecons;
 private:
     HANDLE hFile;
     size_t* pRefCounter;
@@ -111,19 +109,19 @@ public:
     */
     bool pull(ref ubyte[] buf)
     {
-        DWORD size = void;
-        debug std.stdio.writefln("ReadFile : buf.ptr=%08X, len=%s", cast(uint)buf.ptr, buf.length);
+        static import std.stdio;
+        debug(File)
+            std.stdio.writefln("ReadFile : buf.ptr=%08X, len=%s", cast(uint)buf.ptr, buf.length);
 
-        // Check console input is empty
-        //DWORD evcnt;
-        //if (GetNumberOfConsoleInputEvents(hFile, &evcnt) && evcnt == 0)
-        //    return true;
+        DWORD size = void;
 
         if (ReadFile(hFile, buf.ptr, buf.length, &size, null))
         {
             debug(File)
                 std.stdio.writefln("pull ok : hFile=%08X, buf.length=%s, size=%s, GetLastError()=%s",
                     cast(uint)hFile, buf.length, size, GetLastError());
+            debug(File)
+                std.stdio.writefln("F buf[0 .. %d] = [%(%02X %)]", size, buf[0 .. size]);
             buf = buf[size.. $];
             return (size > 0);  // valid on only blocking read
         }
