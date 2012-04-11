@@ -170,77 +170,37 @@ unittest
 version(Windows)
 {
     import sys.windows;
+    //import std.range;
 
-    struct ConsoleInput
-    {
-        bool pull(ref wchar[] buf)
-        {
-            DWORD size = void;
-            HANDLE hFile = GetStdHandle(STD_INPUT_HANDLE);
-            assert(GetFileType(hFile) == FILE_TYPE_CHAR);
-
-            if (ReadConsoleW(hFile, buf.ptr, buf.length, &size, null))
-            {
-                debug(File)
-                    std.stdio.writefln("pull ok : hFile=%08X, buf.length=%s, size=%s, GetLastError()=%s",
-                        cast(uint)hFile, buf.length, size, GetLastError());
-                debug(File)
-                    std.stdio.writefln("C buf[0 .. %d] = [%(%02X %)]", size, buf[0 .. size]);
-                buf = buf[size .. $];
-                return (size > 0);  // valid on only blocking read
-            }
-            else
-            {
-                switch (GetLastError())
-                {
-                    case ERROR_BROKEN_PIPE:
-                        return false;
-                    default:
-                        break;
-                }
-
-                debug(File)
-                    std.stdio.writefln("pull ng : hFile=%08X, size=%s, GetLastError()=%s",
-                        cast(uint)hFile, size, GetLastError());
-                throw new Exception("pull(ref buf[]) error");
-
-            //  // for overlapped I/O
-            //  eof = (GetLastError() == ERROR_HANDLE_EOF);
-            }
-        }
-    }
-
-    class StdInRange
+    class StdInRange : InputRange!dchar
     {
     private:
-        HANDLE hStdin;
+        File cin;
         InputRange!dchar input;
-        InputRange!dchar cin;
 
         this()
         {
-            cin = inputRangeObject(ConsoleInput().buffered.ranged);
             checkHandle();
         }
 
+        /*
+        If we cannot read character from original device, check redirection.
+        */
         bool checkHandle()
         {
             HANDLE hFile = GetStdHandle(STD_INPUT_HANDLE);
-            if (hFile == hStdin)
+            if (hFile == cin)
                 return false;
 
-            hStdin = hFile;
+            cin.attach(hFile);
             if (GetFileType(hFile) == FILE_TYPE_CHAR)
-                input = cin;
+                input = inputRangeObject(cin.coerced!wchar.sourced.buffered.ranged);
             else
-                input = inputRangeObject(File(hFile).buffered.coerced!char.ranged);
+                input = inputRangeObject(cin.coerced!char.sourced.buffered.ranged);
             return true;
         }
 
     public:
-        /**
-        If we cannot read character from original device, check redirection.
-        */
         bool empty()
         {
             if (!input.empty)
@@ -248,7 +208,29 @@ version(Windows)
 
             return checkHandle() ? input.empty : true;
         }
-        alias input this;
+        @property dchar front()
+        {
+            return input.front;
+        }
+
+        dchar moveFront()
+        {
+            return .moveFront(input);
+        }
+
+        void popFront()
+        {
+            input.popFront();
+        }
+
+        int opApply(int delegate(dchar) dg)
+        {
+            return input.opApply(dg);
+        }
+        int opApply(int delegate(size_t, dchar) dg)
+        {
+            return input.opApply(dg);
+        }
     }
 
     unittest

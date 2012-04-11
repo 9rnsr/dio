@@ -23,14 +23,6 @@ private:
 public:
     /**
     */
-    this(HANDLE h)
-    {
-        hFile = h;
-        pRefCounter = new size_t;
-        *pRefCounter = 1;
-    }
-    /**
-    */
     this(string fname, in char[] mode = "r")
     {
         int share = FILE_SHARE_READ | FILE_SHARE_WRITE;
@@ -73,10 +65,12 @@ public:
                 break;
         }
 
-        hFile = CreateFileW(
-            std.utf.toUTFz!(const(wchar)*)(fname), access, share, null, createMode, 0, null);
-        pRefCounter = new size_t();
-        *pRefCounter = 1;
+        attach(CreateFileW(std.utf.toUTFz!(const(wchar)*)(fname),
+                           access, share, null, createMode, 0, null));
+    }
+    package this(HANDLE h)
+    {
+        attach(h);
     }
     this(this)
     {
@@ -84,6 +78,37 @@ public:
             ++(*pRefCounter);
     }
     ~this()
+    {
+        detach();
+    }
+
+    //
+    //@property inout(HANDLE) handle() inout { return hFile; }
+    //alias handle this;
+
+    bool opEquals(ref const File rhs) const
+    {
+        return hFile == rhs.hFile;
+    }
+    bool opEquals(HANDLE h) const
+    {
+        return hFile == h;
+    }
+
+
+    /**
+    */
+    void attach(HANDLE h)
+    {
+        if (hFile)
+            detach();
+        hFile = h;
+        pRefCounter = new size_t;
+        *pRefCounter = 1;
+    }
+    /**
+    */
+    void detach()
     {
         if (pRefCounter)
         {
@@ -112,17 +137,34 @@ public:
 
         DWORD size = void;
 
-        if (ReadFile(hFile, buf.ptr, buf.length, &size, null))
+        // Reading console input always returns UTF-16
+        if (GetFileType(hFile) == FILE_TYPE_CHAR)
         {
-            debug(File)
-                std.stdio.writefln("pull ok : hFile=%08X, buf.length=%s, size=%s, GetLastError()=%s",
-                    cast(uint)hFile, buf.length, size, GetLastError());
-            debug(File)
-                std.stdio.writefln("F buf[0 .. %d] = [%(%02X %)]", size, buf[0 .. size]);
-            buf = buf[size.. $];
-            return (size > 0);  // valid on only blocking read
+            if (ReadConsoleW(hFile, buf.ptr, buf.length/2, &size, null))
+            {
+                debug(File)
+                    std.stdio.writefln("pull ok : hFile=%08X, buf.length=%s, size=%s, GetLastError()=%s",
+                        cast(uint)hFile, buf.length, size, GetLastError());
+                debug(File)
+                    std.stdio.writefln("C buf[0 .. %d] = [%(%02X %)]", size, buf[0 .. size]);
+                buf = buf[size * 2 .. $];
+                return (size > 0);  // valid on only blocking read
+            }
         }
         else
+        {
+            if (ReadFile(hFile, buf.ptr, buf.length, &size, null))
+            {
+                debug(File)
+                    std.stdio.writefln("pull ok : hFile=%08X, buf.length=%s, size=%s, GetLastError()=%s",
+                        cast(uint)hFile, buf.length, size, GetLastError());
+                debug(File)
+                    std.stdio.writefln("F buf[0 .. %d] = [%(%02X %)]", size, buf[0 .. size]);
+                buf = buf[size.. $];
+                return (size > 0);  // valid on only blocking read
+            }
+        }
+
         {
             switch (GetLastError())
             {
@@ -174,7 +216,7 @@ public:
         int hi = cast(int)(offset>>32);
         uint low = SetFilePointer(hFile, cast(int)offset, &hi, whence);
         if ((low == INVALID_SET_FILE_POINTER) && (GetLastError() != 0))
-            throw new /*Seek*/Exception("unable to move file pointer");
+            throw new /*Seek*/Exception("unable to seek file pointer");
         ulong result = (cast(ulong)hi << 32) + low;
       }
       else version (Posix)
