@@ -298,7 +298,7 @@ unittest
 */
 template Buffered(Dev)
 {
-    alias typeof((Dev* d){ return (*d).buffered; }()) Buffered;
+    alias typeof((Dev* d = null){ return (*d).buffered; }()) Buffered;
 }
 
 /// ditto
