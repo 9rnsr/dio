@@ -82,6 +82,7 @@ struct TcpSocket
 
 unittest
 {
+  softUnittest!SocketException({
     auto sock = TcpSocket("www.digitalmars.com", 80);
     const(ubyte)[] sendbuf = cast(const(ubyte)[])"GET / HTTP/1.0\r\n\r\n";
     while (sock.push(sendbuf)){}
@@ -90,6 +91,7 @@ unittest
     ubyte[] recvbuf = buffer[];
     while (sock.pull(recvbuf)) {}
     recvbuf = buffer[0 .. $-recvbuf.length];
+  });
 }
 
 version(unittest)
@@ -100,10 +102,24 @@ version(unittest)
 }
 unittest
 {
+  softUnittest!SocketException({
     auto sock = TcpSocket("dlang.org", 80);
     auto wr = sock.sinked /*.buffered*/.coerced!char.ranged;
     auto rd = sock.sourced  .buffered  .coerced!char.ranged;
 
     wr.put("GET / HTTP/1.0\r\n\r\n");
     auto recvbuf = rd.array();
+  });
+}
+
+// Print a message on exception instead of failing the unittest.
+private void softUnittest(E)(void delegate() test, string fn = __FILE__, size_t ln = __LINE__)
+{
+    import std.exception;
+    if (auto e = collectException!E(test()))
+    {
+        static import std.stdio;
+        std.stdio.writefln(" --- %s(%d) test fails depending on environment ---", fn, ln);
+        std.stdio.writefln(" (%s)", e);
+    }
 }
