@@ -170,34 +170,51 @@ unittest
 version(Windows)
 {
     import sys.windows;
-    //import std.range;
 
-    class StdInRange : InputRange!dchar
+    static File _win_cstdin;
+    static File _win_fstdin;
+    static InputRange!dchar _win_cin;
+    static InputRange!dchar _win_fin;
+
+    static initializeStdIn()
+    {
+        _win_cin = new StdInRange!true();
+        _win_fin = new StdInRange!false();
+
+        HANDLE hFile = GetStdHandle(STD_INPUT_HANDLE);
+        if (GetFileType(hFile) == FILE_TYPE_CHAR)
+        {
+            _win_cstdin.attach(hFile);
+            return _win_cin;
+        }
+        else
+        {
+            _win_fstdin.attach(hFile);
+            return _win_fin;
+        }
+    }
+
+    class StdInRange(bool console) : InputRange!dchar
     {
     private:
-        File cin;
-        InputRange!dchar input;
+        static if (console)
+        {
+            enum RangedDevice = q{ (&_win_cstdin).coerced!wchar.sourced.buffered.ranged };
+            alias Ranged!(Buffered!(Sourced!(Coerced!(wchar, File*)))) InputType;
+            alias _win_cstdin file;
+        }
+        else
+        {
+            enum RangedDevice = q{ (&_win_fstdin).coerced!char.sourced.buffered.ranged };
+            alias Ranged!(Buffered!(Sourced!(Coerced!( char, File*)))) InputType;
+            alias _win_fstdin file;
+        }
+
+        InputType input;
 
         this()
         {
-            checkHandle();
-        }
-
-        /*
-        If we cannot read character from original device, check redirection.
-        */
-        bool checkHandle()
-        {
-            HANDLE hFile = GetStdHandle(STD_INPUT_HANDLE);
-            if (hFile == cin)
-                return false;
-
-            cin.attach(hFile);
-            if (GetFileType(hFile) == FILE_TYPE_CHAR)
-                input = inputRangeObject(cin.coerced!wchar.sourced.buffered.ranged);
-            else
-                input = inputRangeObject(cin.coerced!char.sourced.buffered.ranged);
-            return true;
+            input = mixin(RangedDevice);
         }
 
     public:
@@ -206,8 +223,38 @@ version(Windows)
             if (!input.empty)
                 return false;
 
-            return checkHandle() ? input.empty : true;
+            /*
+            If cannot read any characters, check redirection.
+            */
+            bool nextEmpty()
+            {
+                HANDLE hFile = GetStdHandle(STD_INPUT_HANDLE);
+                if (hFile == file)
+                    return true;    // continue
+
+                if (console && GetFileType(hFile) != FILE_TYPE_CHAR)
+                {   // switch console to non-console
+                    assert(this is _win_cin);
+                    _win_cstdin.detach();
+                    _win_fstdin.attach(hFile);
+                    .din = _win_fin;
+                }
+                else if (!console && GetFileType(hFile) == FILE_TYPE_CHAR)
+                {   // switch non-console to console
+                    assert(this is din);
+                    _win_fstdin.detach();
+                    _win_cstdin.attach(hFile);
+                    .din = _win_cin;
+                }
+                else
+                {
+                    file.attach(hFile);
+                }
+                return .din.empty;
+            }
+            return nextEmpty();
         }
+
         @property dchar front()
         {
             return input.front;
@@ -225,11 +272,22 @@ version(Windows)
 
         int opApply(int delegate(dchar) dg)
         {
-            return input.opApply(dg);
+            for(; !input.empty; input.popFront())
+            {
+                if (auto r = dg(input.front))
+                    return r;
+            }
+            return 0;
         }
         int opApply(int delegate(size_t, dchar) dg)
         {
-            return input.opApply(dg);
+            
+            for(size_t i = 0; !input.empty; input.popFront())
+            {
+                if (auto r = dg(i++, input.front))
+                    return r;
+            }
+            return 0;
         }
     }
 
@@ -295,7 +353,7 @@ version(Windows)
     stdout = adaptTo!(  SinkDevice!ubyte)(File(GetStdHandle(STD_OUTPUT_HANDLE)).sinked);
     stderr = adaptTo!(  SinkDevice!ubyte)(File(GetStdHandle(STD_ERROR_HANDLE )).sinked);
 
-    din  = new StdInRange();// inputRangeObject      (stdin   .buffered  .coerced!char.ranged);
+    din  = initializeStdIn();// inputRangeObject      (stdin   .buffered  .coerced!char.ranged);
     dout = outputRangeObject!dchar(stdout/*.buffered*/.coerced!char.ranged);
     derr = outputRangeObject!dchar(stderr/*.buffered*/.coerced!char.ranged);
   }
