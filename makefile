@@ -5,6 +5,7 @@ SRCS=io\core.d \
 	io\filter.d \
 	io\text.d \
 	io\wrapper.d \
+	sys\windows.d \
 	util\typecons.d \
 	util\meta.d \
 	util\metastrings_expand.d

@@ -3,10 +3,7 @@ module io.file;
 import io.core;
 version(Windows)
 {
-    import core.sys.windows.windows, std.windows.syserror;
-    enum : uint { ERROR_BROKEN_PIPE = 109 }
-
-    extern(Windows) BOOL FlushFileBuffers(HANDLE hFile);
+    import sys.windows;
 }
 
 debug
