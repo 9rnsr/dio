@@ -257,6 +257,41 @@ version(Windows)
         }
         alias input this;
     }
+
+    unittest
+    {
+        HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
+        assert(GetFileType(hStdIn) == FILE_TYPE_CHAR);
+        auto str = "Ma Chérieあいうえお";
+
+        // console input emulation
+        DWORD nwritten;
+        foreach (wchar wc; str~"\r\n")
+        {
+            INPUT_RECORD irec;
+            irec.EventType = KEY_EVENT;
+            irec.KeyEvent.wRepeatCount = 1;
+            irec.KeyEvent.wVirtualKeyCode = 0;   // todo
+            irec.KeyEvent.wVirtualScanCode = 0;  // todo
+            irec.KeyEvent.UnicodeChar = wc;
+            irec.KeyEvent.dwControlKeyState = 0; // todo
+
+            irec.KeyEvent.bKeyDown = TRUE;
+            WriteConsoleInputW(hStdIn, &irec, 1, &nwritten);
+
+            irec.KeyEvent.bKeyDown = FALSE;
+            WriteConsoleInputW(hStdIn, &irec, 1, &nwritten);
+        }
+
+        import io.wrapper;
+        string s;
+        readf("%s\r\n", &s);
+
+        //writefln("s   = [%(%02X %)]\r\n", s);   // as Unicode code points
+        //writefln("s   = [%(%02X %)]\r\n", cast(ubyte[])s);    // as UTF-8
+        //writefln("str = [%(%02X %)]\r\n", cast(ubyte[])str);  // as UTF-8
+        assert(s == str);
+    }
 }
 
 //__gshared
