@@ -171,50 +171,52 @@ version(Windows)
 {
     import sys.windows;
 
-    static File _win_cstdin;
-    static File _win_fstdin;
-    static InputRange!dchar _win_cin;
-    static InputRange!dchar _win_fin;
-
-    static initializeStdIn()
-    {
-        _win_cin = new StdInRange!true();
-        _win_fin = new StdInRange!false();
-
-        HANDLE hFile = GetStdHandle(STD_INPUT_HANDLE);
-        if (GetFileType(hFile) == FILE_TYPE_CHAR)
-        {
-            _win_cstdin.attach(hFile);
-            return _win_cin;
-        }
-        else
-        {
-            _win_fstdin.attach(hFile);
-            return _win_fin;
-        }
-    }
-
-    class StdInRange(bool console) : InputRange!dchar
+    class StdInputRange(bool console) : InputRange!dchar
     {
     private:
+        File file;
+        HANDLE function() getHandle;
+        union
+        {
+            Ranged!(Buffered!(Sourced!(Coerced!(wchar, File*)))) cin;
+            Ranged!(Buffered!(Sourced!(Coerced!( char, File*)))) bin;
+        }
         static if (console)
         {
-            enum RangedDevice = q{ (&_win_cstdin).coerced!wchar.sourced.buffered.ranged };
-            alias Ranged!(Buffered!(Sourced!(Coerced!(wchar, File*)))) InputType;
-            alias _win_cstdin file;
+            alias cin input;
+            enum makeInput = q{ (&file).coerced!wchar.sourced.buffered.ranged };
         }
         else
         {
-            enum RangedDevice = q{ (&_win_fstdin).coerced!char.sourced.buffered.ranged };
-            alias Ranged!(Buffered!(Sourced!(Coerced!( char, File*)))) InputType;
-            alias _win_fstdin file;
+            alias bin input;
+            enum makeInput = q{ (&file).coerced! char.sourced.buffered.ranged };
         }
 
-        InputType input;
-
-        this()
+    public  // needs for emplace
+        this(HANDLE function() get)
         {
-            input = mixin(RangedDevice);
+            getHandle = get;
+
+            auto hFile = getHandle();
+            input = mixin(makeInput);
+            switching(hFile);
+        }
+
+    private:
+        void switching(HANDLE hFile)
+        {
+            if ((GetFileType(hFile) == FILE_TYPE_CHAR) != console)
+            {
+                import std.conv;
+                alias StdInputRange!(!console) Target;
+
+                // switch behavior for console
+                auto payload = (cast(void*)this)[0 .. __traits(classInstanceSize, typeof(this))];
+                auto t = emplace!Target(payload, getHandle);
+                assert(t is this);
+            }
+            else
+                file.attach(hFile);
         }
 
     public:
@@ -226,33 +228,13 @@ version(Windows)
             /*
             If cannot read any characters, check redirection.
             */
-            bool nextEmpty()
-            {
-                HANDLE hFile = GetStdHandle(STD_INPUT_HANDLE);
-                if (hFile == file)
-                    return true;    // continue
+            HANDLE hFile = getHandle();
+            if (hFile == file)
+                return true;    // continue
 
-                if (console && GetFileType(hFile) != FILE_TYPE_CHAR)
-                {   // switch console to non-console
-                    assert(this is _win_cin);
-                    _win_cstdin.detach();
-                    _win_fstdin.attach(hFile);
-                    .din = _win_fin;
-                }
-                else if (!console && GetFileType(hFile) == FILE_TYPE_CHAR)
-                {   // switch non-console to console
-                    assert(this is din);
-                    _win_fstdin.detach();
-                    _win_cstdin.attach(hFile);
-                    .din = _win_cin;
-                }
-                else
-                {
-                    file.attach(hFile);
-                }
-                return .din.empty;
-            }
-            return nextEmpty();
+            switching(hFile);
+            //return input.empty;
+            return this.empty();    // needs virtual call
         }
 
         @property dchar front()
@@ -339,8 +321,8 @@ version(Windows)
     {
         if (nStdHandle == STD_OUTPUT_HANDLE)
         {
-            _win_cout = new StdOutRange!true(nStdHandle);
-            _win_fout = new StdOutRange!false(nStdHandle);
+            _win_cout = new StdOutputRange!true(nStdHandle);
+            _win_fout = new StdOutputRange!false(nStdHandle);
 
             HANDLE hFile = GetStdHandle(STD_OUTPUT_HANDLE);
             if (GetFileType(hFile) == FILE_TYPE_CHAR)
@@ -356,8 +338,8 @@ version(Windows)
         }
         else
         {
-            _win_cerr = new StdOutRange!true(nStdHandle);
-            _win_ferr = new StdOutRange!false(nStdHandle);
+            _win_cerr = new StdOutputRange!true(nStdHandle);
+            _win_ferr = new StdOutputRange!false(nStdHandle);
 
             HANDLE hFile = GetStdHandle(STD_OUTPUT_HANDLE);
             if (GetFileType(hFile) == FILE_TYPE_CHAR)
@@ -380,7 +362,7 @@ version(Windows)
         void put(const(dchar)[]);
     }
 
-    class StdOutRange(bool console) : TextOutputRange
+    class StdOutputRange(bool console) : TextOutputRange
     {
     private:
         static if (console)
@@ -444,7 +426,7 @@ version(Windows)
     /**
     Pre-defined text range interface for standard input, output, and error output.
     */
-     InputRange!dchar din;
+    InputRange!dchar din;
     TextOutputRange dout;     /// ditto
     TextOutputRange derr;     /// ditto
 //}
@@ -458,7 +440,7 @@ version(Windows)
     stdout = adaptTo!(  SinkDevice!ubyte)(File(GetStdHandle(STD_OUTPUT_HANDLE)).sinked);
     stderr = adaptTo!(  SinkDevice!ubyte)(File(GetStdHandle(STD_ERROR_HANDLE )).sinked);
 
-    din  = initializeStdIn();// inputRangeObject      (stdin   .buffered  .coerced!char.ranged);
+    din  = new StdInputRange!true(()=>GetStdHandle(STD_INPUT_HANDLE));
     dout = initializeStdOut(STD_OUTPUT_HANDLE);//outputRangeObject!dchar(stdout/*.buffered*/.coerced!char.ranged);
     derr = initializeStdOut(STD_ERROR_HANDLE);//outputRangeObject!dchar(stderr/*.buffered*/.coerced!char.ranged);
   }
