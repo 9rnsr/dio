@@ -281,7 +281,6 @@ version(Windows)
         }
         int opApply(int delegate(size_t, dchar) dg)
         {
-            
             for(size_t i = 0; !input.empty; input.popFront())
             {
                 if (auto r = dg(i++, input.front))
@@ -325,6 +324,112 @@ version(Windows)
         //writefln("str = [%(%02X %)]\r\n", cast(ubyte[])str);  // as UTF-8
         assert(s == str);
     }
+
+    static File _win_cstdout;
+    static File _win_fstdout;
+    static TextOutputRange _win_cout;
+    static TextOutputRange _win_fout;
+
+    static File _win_cstderr;
+    static File _win_fstderr;
+    static TextOutputRange _win_cerr;
+    static TextOutputRange _win_ferr;
+
+    static initializeStdOut(DWORD nStdHandle)
+    {
+        if (nStdHandle == STD_OUTPUT_HANDLE)
+        {
+            _win_cout = new StdOutRange!true(nStdHandle);
+            _win_fout = new StdOutRange!false(nStdHandle);
+
+            HANDLE hFile = GetStdHandle(STD_OUTPUT_HANDLE);
+            if (GetFileType(hFile) == FILE_TYPE_CHAR)
+            {
+                _win_cstdout.attach(hFile);
+                return _win_cout;
+            }
+            else
+            {
+                _win_fstdout.attach(hFile);
+                return _win_fout;
+            }
+        }
+        else
+        {
+            _win_cerr = new StdOutRange!true(nStdHandle);
+            _win_ferr = new StdOutRange!false(nStdHandle);
+
+            HANDLE hFile = GetStdHandle(STD_OUTPUT_HANDLE);
+            if (GetFileType(hFile) == FILE_TYPE_CHAR)
+            {
+                _win_cstderr.attach(hFile);
+                return _win_cerr;
+            }
+            else
+            {
+                _win_fstderr.attach(hFile);
+                return _win_ferr;
+            }
+        }
+    }
+
+    interface TextOutputRange
+    {
+        void put(const(char)[]);
+        void put(const(wchar)[]);
+        void put(const(dchar)[]);
+    }
+
+    class StdOutRange(bool console) : TextOutputRange
+    {
+    private:
+        static if (console)
+        {
+            enum RangedDevice = q{ (&cout).coerced!wchar.sinked/*.buffered*/.ranged };
+            //alias Ranged!(Buffered!(Sinked!(Coerced!(wchar, File*)))) OutputType;
+            alias Ranged!(Sinked!(Coerced!(wchar, File*))) OutputType;
+            alias _win_cstdout file;
+        }
+        else
+        {
+            enum RangedDevice = q{ (&fout).coerced!char.sinked/*.buffered*/.ranged };
+            //alias Ranged!(Buffered!(Sinked!(Coerced!( char, File*)))) OutputType;
+            alias Ranged!(Sinked!(Coerced!( char, File*))) OutputType;
+            alias _win_fstdout file;
+        }
+
+        OutputType output;
+
+        this(DWORD nStdHandle)
+        {
+            if (nStdHandle == STD_OUTPUT_HANDLE)
+            {
+                alias _win_cstdout cout;
+                alias _win_fstdout fout;
+                output = mixin(RangedDevice);
+            }
+            else
+            {
+                alias _win_cstderr cout;
+                alias _win_fstderr fout;
+                output = mixin(RangedDevice);
+            }
+        }
+
+    public:
+        void put(const(char)[] data)
+        {
+            output.put(data);
+        }
+        void put(const(wchar)[] data)
+        {
+            output.put(data);
+        }
+        void put(const(dchar)[] data)
+        {
+            output.put(data);
+        }
+    }
 }
 
 //__gshared
@@ -340,8 +445,8 @@ version(Windows)
     Pre-defined text range interface for standard input, output, and error output.
     */
      InputRange!dchar din;
-    OutputRange!dchar dout;     /// ditto
-    OutputRange!dchar derr;     /// ditto
+    TextOutputRange dout;     /// ditto
+    TextOutputRange derr;     /// ditto
 //}
 /*shared */static this()
 {
@@ -354,8 +459,8 @@ version(Windows)
     stderr = adaptTo!(  SinkDevice!ubyte)(File(GetStdHandle(STD_ERROR_HANDLE )).sinked);
 
     din  = initializeStdIn();// inputRangeObject      (stdin   .buffered  .coerced!char.ranged);
-    dout = outputRangeObject!dchar(stdout/*.buffered*/.coerced!char.ranged);
-    derr = outputRangeObject!dchar(stderr/*.buffered*/.coerced!char.ranged);
+    dout = initializeStdOut(STD_OUTPUT_HANDLE);//outputRangeObject!dchar(stdout/*.buffered*/.coerced!char.ranged);
+    derr = initializeStdOut(STD_ERROR_HANDLE);//outputRangeObject!dchar(stderr/*.buffered*/.coerced!char.ranged);
   }
 }
 static ~this()

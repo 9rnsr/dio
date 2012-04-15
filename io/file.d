@@ -189,12 +189,28 @@ public:
     bool push(ref const(ubyte)[] buf)
     {
         DWORD size = void;
-        if (WriteFile(hFile, buf.ptr, buf.length, &size, null))
+        if (GetFileType(hFile) == FILE_TYPE_CHAR)
         {
-            buf = buf[size .. $];
-            return true;    // (size == buf.length);
+            if (WriteConsoleW(hFile, buf.ptr, buf.length/2, &size, null))
+            {
+                debug(File)
+                    std.stdio.writefln("pull ok : hFile=%08X, buf.length=%s, size=%s, GetLastError()=%s",
+                        cast(uint)hFile, buf.length, size, GetLastError());
+                debug(File)
+                    std.stdio.writefln("C buf[0 .. %d] = [%(%02X %)]", size, buf[0 .. size]);
+                buf = buf[size * 2 .. $];
+                return (size > 0);  // valid on only blocking read
+            }
         }
         else
+        {
+            if (WriteFile(hFile, buf.ptr, buf.length, &size, null))
+            {
+                buf = buf[size .. $];
+                return true;    // (size == buf.length);
+            }
+        }
+
         {
             throw new Exception("push error");  //?
         }

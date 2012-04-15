@@ -728,10 +728,6 @@ template Ranged(Dev)
 
       static if (isSink!Dev)
       {
-        void put(const(E) data)
-        {
-            put((&data)[0 .. 1]);
-        }
         void put(const(E)[] data)
         {
             import std.utf;
@@ -741,17 +737,19 @@ template Ranged(Dev)
                 {
                     char[4] u8buf;
                     const(char)[] buf = u8buf[0 .. encode(u8buf, c)];
-                    if (!device.push(buf))
+                    while (device.push(buf) && buf.length) {}
+                    if (buf.length)
                         throw new Exception("");
                 }
             }
-            else static if (is(Unqual!B == char))
+            else static if (is(Unqual!B == wchar))
             {
                 foreach (c; data)
                 {
                     wchar[2] u16buf;
-                    wchar[] buf = u16buf[0 .. encode(u16buf, c)];
-                    if (!device.push(buf))
+                    const(wchar)[] buf = u16buf[0 .. encode(u16buf, c)];
+                    while (device.push(buf) && buf.length) {}
+                    if (buf.length)
                         throw new Exception("");
                 }
             }
@@ -762,6 +760,45 @@ template Ranged(Dev)
                     if (!device.push(data))
                         throw new Exception("");
                 }
+            }
+        }
+
+        static if (is(Unqual!B == char) || is(Unqual!B == wchar))
+        void put(const(Unqual!B)[] data)
+        {
+            while (device.push(data) && data.length) {}
+            if (data.length)
+                throw new Exception("");
+        }
+
+        static if (is(Unqual!B == char))
+        void put(const(wchar)[] data)
+        {
+            import std.utf;
+            size_t i = 0;
+            while (i < data.length)
+            {
+                dchar c = decode(data, i);
+                char[4] u8buf;
+                const(char)[] buf = u8buf[0 .. encode(u8buf, c)];
+                while (device.push(buf) && buf.length) {}
+                if (buf.length)
+                    throw new Exception("");
+            }
+        }
+        static if (is(Unqual!B == wchar))
+        void put(const(char)[] data)
+        {
+            import std.utf;
+            size_t i = 0;
+            while (i < data.length)
+            {
+                dchar c = decode(data, i);
+                wchar[2] u16buf;
+                const(wchar)[] buf = u16buf[0 .. encode(u16buf, c)];
+                while (device.push(buf)) {}
+                if (buf.length)
+                    throw new Exception("");
             }
         }
       }

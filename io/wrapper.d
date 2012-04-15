@@ -21,30 +21,33 @@ import std.range : isInputRange, isOutputRange, put;
 Output $(D args) to $(D writer).
 */
 void write(Writer, T...)(ref Writer writer, T args)
-    if (isOutputRange!(Writer, dchar) && T.length > 0)
+    if (is(typeof({ put(writer, ""); })) && T.length > 0)
 {
-    import std.conv;
+    import std.conv, std.traits;
     foreach (i, ref arg; args)
     {
-        put(writer, to!string(arg));
+        static if (isSomeString!(typeof(arg)))
+            put(writer, arg);
+        else
+            put(writer, to!string(arg));
     }
 }
 /// ditto
 void writef(Writer, T...)(ref Writer writer, T args)
-    if (isOutputRange!(Writer, dchar) && T.length > 0)
+    if (is(typeof({ put(writer, ""); })) && T.length > 0)
 {
     import std.format;
     formattedWrite(writer, args);
 }
 /// ditto
 void writeln(Writer, T...)(ref Writer writer, T args)
-    if (isOutputRange!(Writer, dchar))
+    if (is(typeof({ put(writer, ""); })))
 {
     write(writer, args, "\n");
 }
 /// ditto
 void writefln(Writer, T...)(ref Writer writer, T args)
-    if (isOutputRange!(Writer, dchar) && T.length > 0)
+    if (is(typeof({ put(writer, ""); })) && T.length > 0)
 {
     writef(writer, args, "\n");
 }
@@ -53,26 +56,26 @@ void writefln(Writer, T...)(ref Writer writer, T args)
 Output $(D args) to $(D io.text.dout).
 */
 void write(T...)(T args)
-    if (!isOutputRange!(T[0], dchar) && T.length > 0)
+    if (T.length > 0 && !is(typeof({ put(args[0], ""); })))
 {
     write(dout, args);
 }
 /// ditto
 void writef(T...)(T args)
-    if (!isOutputRange!(T[0], dchar) && T.length > 0)
+    if (T.length > 0 && is(typeof({ put(args[0], ""); })))
 {
     writef(dout, args);
 }
 
 /// ditto
 void writeln(T...)(T args)
-    if (T.length == 0 || !isOutputRange!(T[0], dchar))
+    if (T.length == 0 || !is(typeof({ put(args[0], ""); })))
 {
     writeln(dout, args);
 }
 /// ditto
 void writefln(T...)(T args)
-    if (!isOutputRange!(T[0], dchar) && T.length > 0)
+    if (T.length > 0 && !is(typeof({ put(args[0], ""); })))
 {
     writefln(dout, args);
 }
