@@ -152,7 +152,7 @@ auto lined(String = string, Source, Delim)(Source source, in Delim delim, size_t
 version(unittest)
 {
     import io.file;
-    import std.stdio : writeln, writefln;
+    static import std.stdio;
 }
 unittest
 {
@@ -317,11 +317,11 @@ version(Windows)
 
         import io.wrapper;
         string s;
-        readf("%s\r\n", &s);
+        readf(din, "%s\r\n", &s);
 
-        //writefln("s   = [%(%02X %)]\r\n", s);   // as Unicode code points
-        //writefln("s   = [%(%02X %)]\r\n", cast(ubyte[])s);    // as UTF-8
-        //writefln("str = [%(%02X %)]\r\n", cast(ubyte[])str);  // as UTF-8
+        //std.stdio.writefln("s   = [%(%02X %)]\r\n", s);   // as Unicode code points
+        //std.stdio.writefln("s   = [%(%02X %)]\r\n", cast(ubyte[])s);    // as UTF-8
+        //std.stdio.writefln("str = [%(%02X %)]\r\n", cast(ubyte[])str);  // as UTF-8
         assert(s == str);
     }
 
@@ -428,6 +428,41 @@ version(Windows)
         void put(const(dchar)[] data)
         {
             output.put(data);
+        }
+    }
+
+    unittest
+    {
+        import std.algorithm, std.range, std.typetuple, std.conv;
+
+        HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+        assert(GetFileType(hStdOut) == FILE_TYPE_CHAR);
+        enum orgstr = "Ma Chérieあいうえお"w;
+        enum orglen = orgstr.length;    // UTF-16 code unit count
+
+        foreach (Str; TypeTuple!(string, wstring, dstring))
+        {
+            // get cursor positioin
+            CONSOLE_SCREEN_BUFFER_INFO csbinfo;
+            GetConsoleScreenBufferInfo(hStdOut, &csbinfo);
+            COORD curpos = csbinfo.dwCursorPosition;
+
+            Str str = to!Str(orgstr);
+
+            // output to console
+            import io.wrapper;
+            writeln(dout, str);
+
+            wchar[orglen*2] buf;    // prited columns may longer than code-unit count.
+            DWORD cnt;
+            ReadConsoleOutputCharacterW(hStdOut, buf.ptr, buf.length, curpos, &cnt);
+            assert(equal(str, buf[0 .. orglen]));
+
+            //static if (is(Str ==  string)) alias ubyte EB;
+            //static if (is(Str == wstring)) alias ushort EB;
+            //static if (is(Str == dstring)) alias uint EB;
+            //std.stdio.writefln("str = [%(%02X %)]", cast(EB[])str);
+            //std.stdio.writefln("buf = [%(%02X %)]", buf[0 .. orglen]);
         }
     }
 }
