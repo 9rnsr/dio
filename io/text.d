@@ -382,13 +382,6 @@ version(Windows)
 
 //__gshared
 //{
-    // /**
-    // Pre-defined devices for standard input, output, and error output.
-    // */
-    // SourceDevice!ubyte stdin;
-      SinkDevice!ubyte stdout;  /// ditto
-      SinkDevice!ubyte stderr;  /// ditto
-
     /**
     Pre-defined text range interface for standard input, output, and error output.
     */
@@ -402,10 +395,6 @@ version(Windows)
 
   version(Windows)
   {
-  //stdin  = adaptTo!(SourceDevice!ubyte)(File(GetStdHandle(STD_INPUT_HANDLE )).sourced);
-    stdout = adaptTo!(  SinkDevice!ubyte)(File(GetStdHandle(STD_OUTPUT_HANDLE)).sinked);
-    stderr = adaptTo!(  SinkDevice!ubyte)(File(GetStdHandle(STD_ERROR_HANDLE )).sinked);
-
     din  = new StdInputRange!false(()=>GetStdHandle(STD_INPUT_HANDLE));
     dout = new StdOutputRange!false(()=>GetStdHandle(STD_OUTPUT_HANDLE));
     derr = new StdOutputRange!false(()=>GetStdHandle(STD_ERROR_HANDLE));
@@ -416,8 +405,4 @@ static ~this()
     derr.clear();
     dout.clear();
     din.clear();
-
-    stderr.clear();
-    stdout.clear();
-    //stdin.clear();
 }
