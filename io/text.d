@@ -327,17 +327,17 @@ version(Windows)
         HANDLE function() getHandle;
         union
         {
-            Ranged!(Sinked!(Coerced!(wchar, File*))) cout;
-            Ranged!(Sinked!(Coerced!( char, File*))) bout;
+            Ranged!(Buffered!(Sinked!(Coerced!(wchar, File*)))) cout;
+            Ranged!(Buffered!(Sinked!(Coerced!( char, File*)))) bout;
         }
         static if (console)
         {
-            enum makeOutput = q{ (&file).coerced!wchar.sinked/*.buffered*/.ranged };
+            enum makeOutput = q{ (&file).coerced!wchar.sinked.buffered.ranged };
             alias cout output;
         }
         else
         {
-            enum makeOutput = q{ (&file).coerced!char.sinked/*.buffered*/.ranged };
+            enum makeOutput = q{ (&file).coerced!char.sinked.buffered.ranged };
             alias bout output;
         }
 
@@ -387,7 +387,7 @@ version(Windows)
         }
     }
 
-    unittest
+    /+unittest
     {
         import std.algorithm, std.range, std.typetuple, std.conv;
 
@@ -420,7 +420,7 @@ version(Windows)
             //std.stdio.writefln("str = [%(%02X %)]", cast(EB[])str);
             //std.stdio.writefln("buf = [%(%02X %)]", buf[0 .. orglen]);
         }
-    }
+    }+/
 }
 
 //__gshared
