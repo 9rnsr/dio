@@ -475,7 +475,7 @@ template Buffered(Dev)
         /**
         primitive of sink.
         */
-        bool push(const(E)[] data)
+        bool push(ref const(E)[] data)
         {
         //  return device.push(data);
 
