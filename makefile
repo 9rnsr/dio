@@ -25,6 +25,7 @@ DDOC=io.ddoc
 DDOCFLAGS=-D -Dd$(DDOCDIR) -c -o- $(DFLAGS)
 
 IOLIB=lib\io.lib
+DEBLIB=lib\io_debug.lib
 
 
 # lib
@@ -33,6 +34,12 @@ lib: $(IOLIB)
 $(IOLIB): $(SRCS)
 	mkdir lib
 	dmd -lib -of$(IOLIB) $(SRCS)
+	#dmd -lib -of$@ $(DFLAGS) -O -release -noboundscheck $(SRCS)
+
+#deblib: $(DEBLIB)
+#$(DEBLIB): $(SRCS)
+#	mkdir lib
+#	dmd -lib -of$@ $(DFLAGS) -g $(SRCS)
 
 clean:
 	del lib\*.lib
