@@ -144,7 +144,7 @@ auto lined(String = string, Source, Delim)(Source source, in Delim delim, size_t
     }
 
     alias Unqual!(ForeachType!String) Char;
-    auto p = source.coerced!Char.buffered(bufferSize);
+    auto p = source.sourced.coerced!Char.buffered(bufferSize);
 
     return Lined!(typeof(p), Delim, String)(p, delim);
 }
