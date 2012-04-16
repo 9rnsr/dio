@@ -1,3 +1,18 @@
+// module io.text;
+/**
+This module provides some text operations, and formatted read/write.
+
+Example:
+---
+long num;
+write("num>"), readf("%s\r\n", &num);
+writefln("num = %s\n", num);
+
+string str;
+write("str>"), readf("%s\r\n", &str);
+writefln("str = [%(%02X %)]", str);
+---
+ */
 module io.text;
 
 import io.core;
@@ -164,7 +179,7 @@ unittest
         line = ln;
         break;
     }
-    assert(line == "module io.text;");
+    assert(line == "// module io.text;");
 }
 
 version(Windows)
@@ -310,7 +325,6 @@ version(Windows)
             WriteConsoleInputW(hStdIn, &irec, 1, &nwritten);
         }
 
-        import io.wrapper;
         string s;
         readf(din, "%s\r\n", &s);
 
@@ -406,7 +420,6 @@ version(Windows)
             Str str = to!Str(orgstr);
 
             // output to console
-            import io.wrapper;
             writeln(dout, str);
 
             wchar[orglen*2] buf;    // prited columns may longer than code-unit count.
@@ -448,4 +461,83 @@ static ~this()
     derr.clear();
     dout.clear();
     din.clear();
+}
+
+
+/**
+Output $(D args) to $(D writer).
+*/
+void write(Writer, T...)(ref Writer writer, T args)
+    if (is(typeof({ put(writer, ""); })) && T.length > 0)
+{
+    import std.conv, std.traits;
+    foreach (i, ref arg; args)
+    {
+        static if (isSomeString!(typeof(arg)))
+            put(writer, arg);
+        else
+            put(writer, to!string(arg));
+    }
+}
+/// ditto
+void writef(Writer, T...)(ref Writer writer, T args)
+    if (is(typeof({ put(writer, ""); })) && T.length > 0)
+{
+    import std.format;
+    formattedWrite(writer, args);
+}
+/// ditto
+void writeln(Writer, T...)(ref Writer writer, T args)
+    if (is(typeof({ put(writer, ""); })))
+{
+    write(writer, args, "\n");
+}
+/// ditto
+void writefln(Writer, T...)(ref Writer writer, T args)
+    if (is(typeof({ put(writer, ""); })) && T.length > 0)
+{
+    writef(writer, args, "\n");
+}
+
+/**
+Output $(D args) to $(D io.text.dout).
+*/
+void write(T...)(T args)
+    if (T.length > 0 && !is(typeof({ put(args[0], ""); })))
+{
+    write(dout, args);
+}
+/// ditto
+void writef(T...)(T args)
+    if (T.length > 0 && !is(typeof({ put(args[0], ""); })))
+{
+    writef(dout, args);
+}
+
+/// ditto
+void writeln(T...)(T args)
+    if (T.length == 0 || !is(typeof({ put(args[0], ""); })))
+{
+    writeln(dout, args);
+}
+/// ditto
+void writefln(T...)(T args)
+    if (T.length > 0 && !is(typeof({ put(args[0], ""); })))
+{
+    writefln(dout, args);
+}
+
+/**
+*/
+uint readf(Reader, Data...)(ref Reader reader, in char[] format, Data data) if (isInputRange!Reader)
+{
+    import std.format;
+    return formattedRead(reader, format, data);
+}
+
+/**
+*/
+uint readf(Data...)(in char[] format, Data data)
+{
+    return readf(din, format, data);
 }

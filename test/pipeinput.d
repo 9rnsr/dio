@@ -1,4 +1,4 @@
-import io.core, io.text, io.wrapper;
+import io.core, io.text;
 void main()
 {
     long num;

@@ -4,7 +4,6 @@ SRCS=io\core.d \
 	io\buffer.d \
 	io\filter.d \
 	io\text.d \
-	io\wrapper.d \
 	sys\windows.d \
 	util\typecons.d \
 	util\meta.d \
@@ -19,8 +18,7 @@ DOCS=\
 	$(DDOCDIR)\io_socket.html \
 	$(DDOCDIR)\io_buffer.html \
 	$(DDOCDIR)\io_filter.html \
-	$(DDOCDIR)\io_text.html \
-	$(DDOCDIR)\io_wrapper.html
+	$(DDOCDIR)\io_text.html
 DDOC=io.ddoc
 DDOCFLAGS=-D -Dd$(DDOCDIR) -c -o- $(DFLAGS)
 
@@ -80,6 +78,3 @@ $(DDOCDIR)\io_filter.html: $(DDOC) io\filter.d
 
 $(DDOCDIR)\io_text.html: $(DDOC) io\text.d
 	dmd $(DDOCFLAGS) -Dfio_text.html $(DDOC) io\text.d
-
-$(DDOCDIR)\io_wrapper.html: $(DDOC) io\wrapper.d
-	dmd $(DDOCFLAGS) -Dfio_wrapper.html $(DDOC) io\wrapper.d

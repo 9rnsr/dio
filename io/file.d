@@ -299,7 +299,7 @@ struct ArraySource(E)
 
 unittest
 {
-    import io.wrapper;
+    import io.text;
 
     auto r = ArraySource!char("10\r\ntest\r\n").buffered.ranged;
     long num;

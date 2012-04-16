@@ -148,7 +148,6 @@ NAVIGATION_PHOBOS=
         $(LI <a href="io_file.html" title="">io.file</a>)
         $(LI <a href="io_socket.html" title="">io.socket</a>)
         $(LI <a href="io_text.html" title="">io.text</a>)
-        $(LI <a href="io_wrapper.html" title="">io.wrapper</a>)
     )
 </div>
 
