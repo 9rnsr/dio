@@ -171,50 +171,61 @@ version(Windows)
 {
     import sys.windows;
 
-    static File _win_cstdin;
-    static File _win_fstdin;
-    static InputRange!dchar _win_cin;
-    static InputRange!dchar _win_fin;
+    alias InputRange!dchar TextInputRange;
 
-    static initializeStdIn()
+    interface TextOutputRange
     {
-        _win_cin = new StdInRange!true();
-        _win_fin = new StdInRange!false();
-
-        HANDLE hFile = GetStdHandle(STD_INPUT_HANDLE);
-        if (GetFileType(hFile) == FILE_TYPE_CHAR)
-        {
-            _win_cstdin.attach(hFile);
-            return _win_cin;
-        }
-        else
-        {
-            _win_fstdin.attach(hFile);
-            return _win_fin;
-        }
+        void put(const(char)[]);
+        void put(const(wchar)[]);
+        void put(const(dchar)[]);
     }
 
-    class StdInRange(bool console) : InputRange!dchar
+    class StdInputRange(bool console) : TextInputRange
     {
     private:
+        File file;
+        HANDLE function() getHandle;
+        union
+        {
+            Ranged!(Buffered!(Sourced!(Coerced!(wchar, File*)))) cin;
+            Ranged!(Buffered!(Sourced!(Coerced!( char, File*)))) bin;
+        }
         static if (console)
         {
-            enum RangedDevice = q{ (&_win_cstdin).coerced!wchar.sourced.buffered.ranged };
-            alias Ranged!(Buffered!(Sourced!(Coerced!(wchar, File*)))) InputType;
-            alias _win_cstdin file;
+            alias cin input;
+            enum makeInput = q{ (&file).coerced!wchar.sourced.buffered.ranged };
         }
         else
         {
-            enum RangedDevice = q{ (&_win_fstdin).coerced!char.sourced.buffered.ranged };
-            alias Ranged!(Buffered!(Sourced!(Coerced!( char, File*)))) InputType;
-            alias _win_fstdin file;
+            alias bin input;
+            enum makeInput = q{ (&file).coerced! char.sourced.buffered.ranged };
         }
 
-        InputType input;
-
-        this()
+    public  // needs for emplace
+        this(HANDLE function() get)
         {
-            input = mixin(RangedDevice);
+            getHandle = get;
+
+            auto hFile = getHandle();
+            input = mixin(makeInput);
+            switching(hFile);
+        }
+
+    private:
+        void switching(HANDLE hFile)
+        {
+            if ((GetFileType(hFile) == FILE_TYPE_CHAR) != console)
+            {
+                import std.conv;
+                alias StdInputRange!(!console) Target;
+
+                // switch behavior for console
+                auto payload = (cast(void*)this)[0 .. __traits(classInstanceSize, typeof(this))];
+                auto t = emplace!Target(payload, getHandle);
+                assert(t is this);
+            }
+            else
+                file.attach(hFile);
         }
 
     public:
@@ -226,33 +237,13 @@ version(Windows)
             /*
             If cannot read any characters, check redirection.
             */
-            bool nextEmpty()
-            {
-                HANDLE hFile = GetStdHandle(STD_INPUT_HANDLE);
-                if (hFile == file)
-                    return true;    // continue
+            HANDLE hFile = getHandle();
+            if (hFile == file)
+                return true;    // continue
 
-                if (console && GetFileType(hFile) != FILE_TYPE_CHAR)
-                {   // switch console to non-console
-                    assert(this is _win_cin);
-                    _win_cstdin.detach();
-                    _win_fstdin.attach(hFile);
-                    .din = _win_fin;
-                }
-                else if (!console && GetFileType(hFile) == FILE_TYPE_CHAR)
-                {   // switch non-console to console
-                    assert(this is din);
-                    _win_fstdin.detach();
-                    _win_cstdin.attach(hFile);
-                    .din = _win_cin;
-                }
-                else
-                {
-                    file.attach(hFile);
-                }
-                return .din.empty;
-            }
-            return nextEmpty();
+            switching(hFile);
+            //return input.empty;
+            return this.empty();    // needs virtual call
         }
 
         @property dchar front()
@@ -325,95 +316,52 @@ version(Windows)
         assert(s == str);
     }
 
-    static File _win_cstdout;
-    static File _win_fstdout;
-    static TextOutputRange _win_cout;
-    static TextOutputRange _win_fout;
-
-    static File _win_cstderr;
-    static File _win_fstderr;
-    static TextOutputRange _win_cerr;
-    static TextOutputRange _win_ferr;
-
-    static initializeStdOut(DWORD nStdHandle)
-    {
-        if (nStdHandle == STD_OUTPUT_HANDLE)
-        {
-            _win_cout = new StdOutRange!true(nStdHandle);
-            _win_fout = new StdOutRange!false(nStdHandle);
-
-            HANDLE hFile = GetStdHandle(STD_OUTPUT_HANDLE);
-            if (GetFileType(hFile) == FILE_TYPE_CHAR)
-            {
-                _win_cstdout.attach(hFile);
-                return _win_cout;
-            }
-            else
-            {
-                _win_fstdout.attach(hFile);
-                return _win_fout;
-            }
-        }
-        else
-        {
-            _win_cerr = new StdOutRange!true(nStdHandle);
-            _win_ferr = new StdOutRange!false(nStdHandle);
-
-            HANDLE hFile = GetStdHandle(STD_OUTPUT_HANDLE);
-            if (GetFileType(hFile) == FILE_TYPE_CHAR)
-            {
-                _win_cstderr.attach(hFile);
-                return _win_cerr;
-            }
-            else
-            {
-                _win_fstderr.attach(hFile);
-                return _win_ferr;
-            }
-        }
-    }
-
-    interface TextOutputRange
-    {
-        void put(const(char)[]);
-        void put(const(wchar)[]);
-        void put(const(dchar)[]);
-    }
-
-    class StdOutRange(bool console) : TextOutputRange
+    class StdOutputRange(bool console) : TextOutputRange
     {
     private:
+        File file;
+        HANDLE function() getHandle;
+        union
+        {
+            Ranged!(Sinked!(Coerced!(wchar, File*))) cout;
+            Ranged!(Sinked!(Coerced!( char, File*))) bout;
+        }
         static if (console)
         {
-            enum RangedDevice = q{ (&cout).coerced!wchar.sinked/*.buffered*/.ranged };
-            //alias Ranged!(Buffered!(Sinked!(Coerced!(wchar, File*)))) OutputType;
-            alias Ranged!(Sinked!(Coerced!(wchar, File*))) OutputType;
-            alias _win_cstdout file;
+            enum makeOutput = q{ (&file).coerced!wchar.sinked/*.buffered*/.ranged };
+            alias cout output;
         }
         else
         {
-            enum RangedDevice = q{ (&fout).coerced!char.sinked/*.buffered*/.ranged };
-            //alias Ranged!(Buffered!(Sinked!(Coerced!( char, File*)))) OutputType;
-            alias Ranged!(Sinked!(Coerced!( char, File*))) OutputType;
-            alias _win_fstdout file;
+            enum makeOutput = q{ (&file).coerced!char.sinked/*.buffered*/.ranged };
+            alias bout output;
         }
 
-        OutputType output;
-
-        this(DWORD nStdHandle)
+    public  // needs for emplace
+        this(HANDLE function() get)
         {
-            if (nStdHandle == STD_OUTPUT_HANDLE)
+            getHandle = get;
+
+            auto hFile = getHandle();
+            output = mixin(makeOutput);
+            switching(hFile);
+        }
+
+    private:
+        void switching(HANDLE hFile)
+        {
+            if ((GetFileType(hFile) == FILE_TYPE_CHAR) != console)
             {
-                alias _win_cstdout cout;
-                alias _win_fstdout fout;
-                output = mixin(RangedDevice);
+                import std.conv;
+                alias StdOutputRange!(!console) Target;
+
+                // switch behavior for console
+                auto payload = (cast(void*)this)[0 .. __traits(classInstanceSize, typeof(this))];
+                auto t = emplace!Target(payload, getHandle);
+                assert(t is this);
             }
             else
-            {
-                alias _win_cstderr cout;
-                alias _win_fstderr fout;
-                output = mixin(RangedDevice);
-            }
+                file.attach(hFile);
         }
 
     public:
@@ -469,17 +417,10 @@ version(Windows)
 
 //__gshared
 //{
-    // /**
-    // Pre-defined devices for standard input, output, and error output.
-    // */
-    // SourceDevice!ubyte stdin;
-      SinkDevice!ubyte stdout;  /// ditto
-      SinkDevice!ubyte stderr;  /// ditto
-
     /**
     Pre-defined text range interface for standard input, output, and error output.
     */
-     InputRange!dchar din;
+    InputRange!dchar din;
     TextOutputRange dout;     /// ditto
     TextOutputRange derr;     /// ditto
 //}
@@ -489,13 +430,9 @@ version(Windows)
 
   version(Windows)
   {
-  //stdin  = adaptTo!(SourceDevice!ubyte)(File(GetStdHandle(STD_INPUT_HANDLE )).sourced);
-    stdout = adaptTo!(  SinkDevice!ubyte)(File(GetStdHandle(STD_OUTPUT_HANDLE)).sinked);
-    stderr = adaptTo!(  SinkDevice!ubyte)(File(GetStdHandle(STD_ERROR_HANDLE )).sinked);
-
-    din  = initializeStdIn();// inputRangeObject      (stdin   .buffered  .coerced!char.ranged);
-    dout = initializeStdOut(STD_OUTPUT_HANDLE);//outputRangeObject!dchar(stdout/*.buffered*/.coerced!char.ranged);
-    derr = initializeStdOut(STD_ERROR_HANDLE);//outputRangeObject!dchar(stderr/*.buffered*/.coerced!char.ranged);
+    din  = new StdInputRange!false(()=>GetStdHandle(STD_INPUT_HANDLE));
+    dout = new StdOutputRange!false(()=>GetStdHandle(STD_OUTPUT_HANDLE));
+    derr = new StdOutputRange!false(()=>GetStdHandle(STD_ERROR_HANDLE));
   }
 }
 static ~this()
@@ -503,8 +440,4 @@ static ~this()
     derr.clear();
     dout.clear();
     din.clear();
-
-    stderr.clear();
-    stdout.clear();
-    //stdin.clear();
 }
