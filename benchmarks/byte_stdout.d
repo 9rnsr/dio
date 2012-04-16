@@ -14,21 +14,19 @@ void main(string[] args)
 
     void testio() @trusted
     {
-        auto rnd = Xorshift(1);
         foreach (i; 0 .. count)
         {
-            //io.wrapper.write(rnd.front);
-            io.wrapper.write(uniform(' ', 'z', rnd));
+            io.wrapper.writef("%s,", i);
         }
+        io.wrapper.writeln();    // flush buffer?
     }
     void teststd() @trusted
     {
-        auto rnd = Xorshift(1);
         foreach (i; 0 .. count)
         {
-            //std.stdio.write(rnd.front);
-            std.stdio.write(uniform(' ', 'z', rnd));
+            std.stdio.writef("%s,", i);
         }
+        std.stdio.writeln();    // flush line buffer
     }
 
     auto times = benchmark!(testio, teststd)(1);
