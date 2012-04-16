@@ -210,6 +210,10 @@ version(Windows)
             input = mixin(makeInput);
             switching(hFile);
         }
+        ~this()
+        {
+            clear(input);
+        }
 
     private:
         void switching(HANDLE hFile)
@@ -345,6 +349,10 @@ version(Windows)
             auto hFile = getHandle();
             output = mixin(makeOutput);
             switching(hFile);
+        }
+        ~this()
+        {
+            clear(output);
         }
 
     private:
