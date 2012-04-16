@@ -62,7 +62,7 @@ void write(T...)(T args)
 }
 /// ditto
 void writef(T...)(T args)
-    if (T.length > 0 && is(typeof({ put(args[0], ""); })))
+    if (T.length > 0 && !is(typeof({ put(args[0], ""); })))
 {
     writef(dout, args);
 }
