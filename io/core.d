@@ -640,8 +640,12 @@ unittest
 
 /**
 Generate possible range interface from $(D device).
+
 If $(D device) is a $(I pool), input range interface is available.
 If $(D device) is a $(I sink), output range interface is available.
+
+If original $(D device) element is Unicode character, supports decoding and
+encoding.
 */
 template Ranged(Dev)
 {
@@ -654,13 +658,16 @@ template Ranged(Dev)
 {
     static struct Ranged
     {
-        import std.traits;
     private:
-        alias DeviceElementType!Dev B;
-        static if (is(Unqual!B == char) || is(Unqual!B == wchar))
-            alias dchar E;
-        else
-            alias B E;
+        import std.traits;
+
+        template isNarrowChar(T)
+        {
+            enum isNarrowChar = is(Unqual!T == char) || is(Unqual!T == wchar);
+        }
+
+        alias Unqual!(DeviceElementType!Dev) B;
+        alias Select!(isNarrowChar!B, dchar, B) E;
 
         Dev device;
         bool eof;
@@ -687,7 +694,7 @@ template Ranged(Dev)
             if (front_ok)
                 return front_val;
 
-            static if (is(Unqual!B == char) || is(Unqual!B == wchar))
+            static if (isNarrowChar!B)
             {
                 import std.utf;
                 auto c = device.available[0];
@@ -700,8 +707,8 @@ template Ranged(Dev)
                     return c;
                 }
 
-                Unqual!B[B.sizeof == 1 ? 6 : 2] ubuf;
-                Unqual!B[] buf = ubuf[0 .. n];
+                B[B.sizeof == 1 ? 6 : 2] ubuf;
+                B[] buf = ubuf[0 .. n];
                 while (buf.length > 0 && device.pull(buf)) {}
                 if (buf.length)
                     goto err;
@@ -728,75 +735,39 @@ template Ranged(Dev)
 
       static if (isSink!Dev)
       {
-        void put(const(E)[] data)
+        void put()(const(B)[] data)
         {
-            import std.utf;
-            static if (is(Unqual!B == char))
-            {
-                foreach (c; data)
-                {
-                    char[4] u8buf;
-                    const(char)[] buf = u8buf[0 .. encode(u8buf, c)];
-                    while (device.push(buf) && buf.length) {}
-                    if (buf.length)
-                        throw new Exception("");
-                }
-            }
-            else static if (is(Unqual!B == wchar))
-            {
-                foreach (c; data)
-                {
-                    wchar[2] u16buf;
-                    const(wchar)[] buf = u16buf[0 .. encode(u16buf, c)];
-                    while (device.push(buf) && buf.length) {}
-                    if (buf.length)
-                        throw new Exception("");
-                }
-            }
-            else
-            {
-                while (data.length > 0)
-                {
-                    if (!device.push(data))
-                        throw new Exception("");
-                }
-            }
-        }
-
-        static if (is(Unqual!B == char) || is(Unqual!B == wchar))
-        void put(const(Unqual!B)[] data)
-        {
+            // direct push
             while (device.push(data) && data.length) {}
             if (data.length)
                 throw new Exception("");
         }
 
-        static if (is(Unqual!B == char))
-        void put(const(wchar)[] data)
+        void put()(const(dchar)[] data) if (isNarrowChar!B)
         {
+            // with encoding
             import std.utf;
-            size_t i = 0;
-            while (i < data.length)
+            foreach (c; data)
             {
-                dchar c = decode(data, i);
-                char[4] u8buf;
-                const(char)[] buf = u8buf[0 .. encode(u8buf, c)];
+                B[B.sizeof == 1 ? 4 : 2] ubuf;
+                const(B)[] buf = ubuf[0 .. encode(ubuf, c)];
                 while (device.push(buf) && buf.length) {}
                 if (buf.length)
                     throw new Exception("");
             }
         }
-        static if (is(Unqual!B == wchar))
-        void put(const(char)[] data)
+
+        void put(C)(const(C)[] data) if (isNarrowChar!C && !is(B == C))
         {
+            // with transcoding from narrows
             import std.utf;
             size_t i = 0;
             while (i < data.length)
             {
                 dchar c = decode(data, i);
-                wchar[2] u16buf;
-                const(wchar)[] buf = u16buf[0 .. encode(u16buf, c)];
-                while (device.push(buf)) {}
+                B[B.sizeof == 1 ? 4 : 2] ubuf;
+                const(B)[] buf = ubuf[0 .. encode(ubuf, c)];
+                while (device.push(buf) && buf.length) {}
                 if (buf.length)
                     throw new Exception("");
             }
