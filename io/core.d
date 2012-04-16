@@ -253,13 +253,12 @@ template Sinked(Dev)
         {
             return device.push(buf);
         }
-/+
+
       static if (is(typeof(device.flush())))
         bool flush()
         {
             return device.flush();
         }
-// +/
     }
 
     return Sinked(device);
@@ -444,9 +443,10 @@ template Buffered(Dev)
         primitives of output pool?
         */
         bool flush()
-        in { assert(reserves.length > 0); }
-        body
         {
+            if (reserves.length == 0)
+                return true;
+
           static if (isDevice!Dev)
             device.seek(base_pos + rsv_start, SeekPos.Set);
 
@@ -612,13 +612,12 @@ template Coerced(E, Dev)
         {
             return device.seek(offset, whence);
         }
-/+
+
       static if (is(typeof(device.flush())))
         bool flush()
         {
             return device.flush();
         }
-// +/
     }
 
     return Coerced(device);
@@ -773,13 +772,12 @@ template Ranged(Dev)
             }
         }
       }
-/+
+
       static if (is(typeof(device.flush())))
         bool flush()
         {
             return device.flush();
         }
-// +/
     }
 
     return Ranged(device);

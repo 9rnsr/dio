@@ -186,13 +186,17 @@ version(Windows)
 {
     import sys.windows;
 
-    alias InputRange!dchar TextInputRange;
+    interface TextInputRange : InputRange!dchar
+    {
+    }
 
     interface TextOutputRange
     {
         void put(const(char)[]);
         void put(const(wchar)[]);
         void put(const(dchar)[]);
+
+        bool flush();
     }
 
     class StdInputRange(bool console) : TextInputRange
@@ -390,18 +394,26 @@ version(Windows)
         void put(const(char)[] data)
         {
             output.put(data);
+            output.flush();
         }
         void put(const(wchar)[] data)
         {
             output.put(data);
+            output.flush();
         }
         void put(const(dchar)[] data)
         {
             output.put(data);
+            output.flush();
+        }
+
+        bool flush()
+        {
+            return output.flush();
         }
     }
 
-    /+unittest
+    unittest
     {
         import std.algorithm, std.range, std.typetuple, std.conv;
 
@@ -433,7 +445,7 @@ version(Windows)
             //std.stdio.writefln("str = [%(%02X %)]", cast(EB[])str);
             //std.stdio.writefln("buf = [%(%02X %)]", buf[0 .. orglen]);
         }
-    }+/
+    }
 }
 
 //__gshared

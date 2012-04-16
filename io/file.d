@@ -216,12 +216,10 @@ public:
         }
     }
 
-/+
     bool flush()
     {
         return FlushFileBuffers(hFile) != FALSE;
     }
-// +/
 
     /**
     */
