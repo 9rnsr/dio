@@ -121,6 +121,9 @@ public:
         }
     }
 
+    //typeof(this) dup() { return this; }
+    //typeof(this) dup() shared {}
+
     /**
     Request n number of elements.
     $(D buf) is treated as an output range.
@@ -237,7 +240,7 @@ public:
       {
         auto result = lseek(hFile, cast(int)offset, whence);
         if (result == cast(typeof(result))-1)
-            throw new /*Seek*/Exception("unable to move file pointer");
+            throw new /*Seek*/Exception("unable to seek file pointer");
       }
       else
       {

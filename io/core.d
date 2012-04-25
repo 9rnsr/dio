@@ -43,15 +43,15 @@ template isSource(Dev)
 }
 
 /**
-Returns $(D true) if $(D Dev) is a $(I pool). It must define the
+Returns $(D true) if $(D Dev) is a buffered $(I source). It must define the
 three primitives, $(D fetch), $(D available), and $(D consume).
 
 In definition, initial state of pool has 0 length $(D available).
 It assumes that the pool is not $(D fetch)-ed yet.
 */
-template isPool(Dev)
+template isBufferedSource(Dev)
 {
-    enum isPool = is(typeof(
+    enum isBufferedSource = is(typeof(
     {
         Dev d;
         alias DeviceElementType!Dev E;
@@ -61,6 +61,22 @@ template isPool(Dev)
             size_t n;
             d.consume(n);
         }
+    }));
+}
+
+/**
+Returns $(D true) if $(D Dev) is a buffered $(I sink). It must define the
+three primitives, $(D flush), $(D writable), and $(D commit).
+*/
+template isBufferedSink(Dev)
+{
+    enum isBufferedSink = is(typeof(
+    {
+        Dev d;
+        alias DeviceElementType!Dev E;
+        d.writable[0] = E.init;
+        d.commit(1);
+        if (d.flush()){}
     }));
 }
 
@@ -113,33 +129,55 @@ template isDevice(Dev)
 /**
 Provides runtime $(I source) interface.
 */
-interface SourceDevice(E)
+interface Source(E)
 {
+    ///
     bool pull(ref E[] buf);
 }
 
 /**
-Provides runtime $(I pool) interface.
+Provides runtime buffered $(I source) interface.
 */
-interface PoolDevice(E) : SourceDevice!E
+interface BufferedSource(E) : Source!E
 {
+    ///
     bool fetch();
+
+    ///
     @property const(E)[] available() const;
+
+    ///
     void consume(size_t n);
 }
 
 /**
 Provides runtime $(I sink) interface.
 */
-interface SinkDevice(E)
+interface Sink(E)
 {
+    ///
     bool push(ref const(E)[] buf);
+}
+
+/**
+Provides runtime buffered $(I sink) interface.
+*/
+interface BufferedSink(E) : Sink!E
+{
+    ///
+    bool commit(size_t n);
+
+    ///
+    @property E[] writable();
+
+    ///
+    bool flush();
 }
 
 /**
 Provides runtime seekable interface.
 */
-interface SeekableDevice
+interface Seekable
 {
     ulong seek(long offset, SeekPos whence);
 }
@@ -176,7 +214,7 @@ template Sourced(Dev)
             return device.pull(buf);
         }
 
-      static if (isPool!Dev)
+      static if (isBufferedSource!Dev)
       {
         bool fetch()
         {
@@ -221,7 +259,7 @@ unittest
 
     alias typeof(File.init.buffered.sourced) BufferedInputFile;
     static assert( isSource!BufferedInputFile);
-    static assert( isPool!BufferedInputFile);
+    static assert( isBufferedSource!BufferedInputFile);
     static assert(!isSink!BufferedInputFile);
 }
 
@@ -289,7 +327,7 @@ unittest
 
     alias typeof(File.init.buffered.sinked) BufferedOutputFile;
     static assert(!isSource!BufferedOutputFile);
-    static assert(!isPool!BufferedOutputFile);
+    static assert(!isBufferedSource!BufferedOutputFile);
     static assert( isSink!BufferedOutputFile);
 }
 
@@ -334,6 +372,7 @@ template Buffered(Dev)
         }
 
       static if (isSource!Dev)
+      {
         /**
         primitives of source.
         */
@@ -356,9 +395,8 @@ template Buffered(Dev)
             }
         }
 
-      static if (isSource!Dev)
         /**
-        primitives of pool.
+        primitives of buffered $(I source).
         */
         bool fetch()
         body
@@ -387,14 +425,12 @@ template Buffered(Dev)
             return result;
         }
 
-      static if (isSource!Dev)
         /// ditto
         @property const(E)[] available() const
         {
             return buffer[ava_start .. ava_end];
         }
 
-      static if (isSource!Dev)
         /// ditto
         void consume(size_t n)
         in { assert(n <= available.length); }
@@ -402,45 +438,36 @@ template Buffered(Dev)
         {
             ava_start += n;
         }
-
-      static if (isSink!Dev)
-      {
-        /*
-        primitives of output pool?
-        */
-        private @property E[] usable()
-        {
-          static if (isDevice!Dev)
-            return buffer[ava_start .. $];
-          else
-            return buffer[rsv_end .. $];
-        }
-        private @property const(E)[] reserves()
-        {
-            return buffer[rsv_start .. rsv_end];
-        }
-        // ditto
-        private void commit(size_t n)
-        {
-          static if (isDevice!Dev)
-          {
-            assert(ava_start + n <= buffer.length);
-            ava_start += n;
-            ava_end = max(ava_end, ava_start);
-            rsv_end = ava_start;
-          }
-          else
-          {
-            assert(rsv_end + n <= buffer.length);
-            rsv_end += n;
-          }
-        }
       }
 
       static if (isSink!Dev)
+      {
         /**
-        flush buffer.
-        primitives of output pool?
+        primitive of sink.
+        */
+        bool push(ref const(E)[] data)
+        {
+        //  return device.push(data);
+
+            while (data.length > 0)
+            {
+                if (writable.length == 0)
+                    if (!flush()) goto Exit;
+                auto len = min(data.length, writable.length);
+                writable[0 .. len] = data[0 .. len];
+                data = data[len .. $];
+                commit(len);
+            }
+            if (writable.length == 0)
+                if (!flush()) goto Exit;
+
+            return true;
+          Exit:
+            return false;
+        }
+
+        /*
+        primitives of buffered $(I sink).
         */
         bool flush()
         {
@@ -471,30 +498,37 @@ template Buffered(Dev)
             return result;
         }
 
-      static if (isSink!Dev)
-        /**
-        primitive of sink.
-        */
-        bool push(ref const(E)[] data)
+        /// ditto
+        @property E[] writable()
         {
-        //  return device.push(data);
-
-            while (data.length > 0)
-            {
-                if (usable.length == 0)
-                    if (!flush()) goto Exit;
-                auto len = min(data.length, usable.length);
-                usable[0 .. len] = data[0 .. len];
-                data = data[len .. $];
-                commit(len);
-            }
-            if (usable.length == 0)
-                if (!flush()) goto Exit;
-
-            return true;
-          Exit:
-            return false;
+          static if (isDevice!Dev)
+            return buffer[ava_start .. $];
+          else
+            return buffer[rsv_end .. $];
         }
+
+        private @property const(E)[] reserves()
+        {
+            return buffer[rsv_start .. rsv_end];
+        }
+
+        /// ditto
+        void commit(size_t n)
+        {
+          static if (isDevice!Dev)
+          {
+            assert(ava_start + n <= buffer.length);
+            ava_start += n;
+            ava_end = max(ava_end, ava_start);
+            rsv_end = ava_start;
+          }
+          else
+          {
+            assert(rsv_end + n <= buffer.length);
+            rsv_end += n;
+          }
+        }
+      }
     }
 
     import std.typecons;
@@ -573,7 +607,7 @@ template Coerced(E, Dev)
             return result;
         }
 
-      static if (isPool!Dev)
+      static if (isBufferedSource!Dev)
       {
         bool fetch()
         {
@@ -653,7 +687,7 @@ template Ranged(Dev)
 
 /// ditto
 @property auto ranged(Dev)(Dev device)
-    if (isPool!Dev || isSink!Dev)
+    if (isBufferedSource!Dev || isSink!Dev)
 {
     static struct Ranged
     {
@@ -678,7 +712,7 @@ template Ranged(Dev)
             device = d;
         }
 
-      static if (isPool!Dev)
+      static if (isBufferedSource!Dev)
       {
         @property bool empty()
         {

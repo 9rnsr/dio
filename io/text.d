@@ -58,7 +58,7 @@ auto lined(String = string, Source, Delim)(Source source, in Delim delim, size_t
     if (isSource!Source && isInputRange!Delim)
 {
     static struct Lined(Dev, Delim, String : Char[], Char)
-        if (isPool!Dev && isSomeChar!Char)
+        if (isBufferedSource!Dev && isSomeChar!Char)
     {
     private:
         static assert(is(DeviceElementType!Dev == Unqual!Char));
