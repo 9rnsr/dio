@@ -37,15 +37,83 @@ if (isSomeChar!(DeviceElementType!Dev) ||
         enum isWindows = false;
     static if (isWindows && is(typeof(device.handle) : HANDLE))
     {
+        import std.conv;
+        alias typeof({ return Dev.init.coerced!wchar.buffered; }()) ConDev;
+
+        // Type erasure for console device
+        static struct WindowsTextPort
+        {
+        private:
+            bool con;
+            union
+            {
+                TextPort!ConDev cport;
+                TextPort!LowDev fport;
+            }
+
+        public:
+            this(this)
+            {
+                con ? typeid(cport).postblit(&cport)
+                    : typeid(fport).postblit(&fport);
+            }
+            ~this()
+            {
+                con ? clear(cport) : clear(fport);
+            }
+
+          static if (isSource!Dev)
+          {
+            @property bool empty()
+            {
+                return con ? cport.empty : fport.empty;
+            }
+            @property dchar front()
+            {
+                return con ? cport.front : fport.front;
+            }
+            void popFront()
+            {
+                return con ? cport.popFront() : fport.popFront();
+            }
+            int opApply(scope int delegate(dchar) dg)
+            {
+                return con ? cport.opApply(dg) : fport.opApply(dg);
+            }
+
+            //auto lines(LineType = const(char)[])()
+            //{
+            //    return con ? cport.lines!LineType : fport.lines!LineType;
+            //}
+          }
+
+          static if (isSink!Dev)
+          {
+            void put(dchar data) { return con ? cport.put(data) : fport.put(data); }
+            void put(const( char)[] data) { return con ? cport.put(data) : fport.put(data); }
+            void put(const(wchar)[] data) { return con ? cport.put(data) : fport.put(data); }
+            void put(const(dchar)[] data) { return con ? cport.put(data) : fport.put(data); }
+          }
+        }
+
+        WindowsTextPort wport;
+
         // deviceがFileかつConsoleの場合、これをubyte->UTF16にcoerceして扱う
         // ユーザーが同様のことを「ユーザー定義の」file deviceで行う場合、
         // wcharを入出力するdeviceとしてtextPortに渡してやればよい
         if (GetFileType(device.handle) == FILE_TYPE_CHAR)
         {
-            // todo
+            wport.con = true;
+            emplace(&wport.cport, device.coerced!wchar.buffered);
         }
+        else
+        {
+            wport.con = false;
+            emplace(&wport.fport, device.coerced!char.buffered);
+        }
+        return wport;
     }
-    else+/
+    else
     {
         return TextPort!LowDev(device.coerced!char.buffered);
     }
