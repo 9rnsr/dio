@@ -58,7 +58,7 @@ private template AdaptTo(Targets...)
     alias staticUniq!(staticMap!(VirtualFunctionsOf, Targets)) TgtFuns;
 
     template NameOf(alias a) { enum NameOf = __traits(identifier, a); }
-    template TypeOf(alias a) { alias typeof(a) TypeOf; }
+    template TypeOf(alias a) { alias FunctionTypeOf!a TypeOf; }
 
     template CovariantSignatures(S)
     {
