@@ -522,6 +522,20 @@ public:
     }
 }
 
+unittest
+{
+    const(char)[] line;
+    foreach (ln; File(__FILE__).textPort().lines)
+    {
+        line = ln;
+        break;
+    }
+    assert(line == "/**");
+
+    foreach (ln; File(__FILE__).textPort().lines!string){}
+}
+
+
 // Type erasure for console device
 version(Windows)
 {
@@ -596,6 +610,73 @@ version(Windows)
         void put(const(wchar)[] data) { return con ? cport.put(data) : fport.put(data); }
         void put(const(dchar)[] data) { return con ? cport.put(data) : fport.put(data); }
       }
+    }
+
+    /+unittest
+    {
+        HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
+        assert(GetFileType(hStdIn) == FILE_TYPE_CHAR);
+        auto str = "Ma Chérieあいうえお";
+
+        // console input emulation
+        DWORD nwritten;
+        foreach (wchar wc; str~"\r\n")
+        {
+            INPUT_RECORD irec;
+            irec.EventType = KEY_EVENT;
+            irec.KeyEvent.wRepeatCount = 1;
+            irec.KeyEvent.wVirtualKeyCode = 0;   // todo
+            irec.KeyEvent.wVirtualScanCode = 0;  // todo
+            irec.KeyEvent.UnicodeChar = wc;
+            irec.KeyEvent.dwControlKeyState = 0; // todo
+
+            irec.KeyEvent.bKeyDown = TRUE;
+            WriteConsoleInputW(hStdIn, &irec, 1, &nwritten);
+
+            irec.KeyEvent.bKeyDown = FALSE;
+            WriteConsoleInputW(hStdIn, &irec, 1, &nwritten);
+        }
+
+        string s;
+        readf(din, "%s\n", &s);
+
+        //std.stdio.writefln("s   = [%(%02X %)]", s);   // as Unicode code points
+        //std.stdio.writefln("s   = [%(%02X %)]", cast(ubyte[])s);    // as UTF-8
+        //std.stdio.writefln("str = [%(%02X %)]", cast(ubyte[])str);  // as UTF-8
+        assert(s == str);
+    }+/
+    unittest
+    {
+        import std.algorithm, std.range, std.typetuple, std.conv;
+
+        HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+        assert(GetFileType(hStdOut) == FILE_TYPE_CHAR);
+        enum orgstr = "Ma Chérieあいうえお"w;
+        enum orglen = orgstr.length;    // UTF-16 code unit count
+
+        foreach (Str; TypeTuple!(string, wstring, dstring))
+        {
+            // get cursor positioin
+            CONSOLE_SCREEN_BUFFER_INFO csbinfo;
+            GetConsoleScreenBufferInfo(hStdOut, &csbinfo);
+            COORD curpos = csbinfo.dwCursorPosition;
+
+            Str str = to!Str(orgstr);
+
+            // output to console
+            writeln(dout, str);
+
+            wchar[orglen*2] buf;    // prited columns may longer than code-unit count.
+            DWORD cnt;
+            ReadConsoleOutputCharacterW(hStdOut, buf.ptr, buf.length, curpos, &cnt);
+
+            //static if (is(Str ==  string)) alias ubyte EB;
+            //static if (is(Str == wstring)) alias ushort EB;
+            //static if (is(Str == dstring)) alias uint EB;
+            //std.stdio.writefln("str = [%(%02X %)]", cast(EB[])str);
+            //std.stdio.writefln("buf = [%(%02X %)]", buf[0 .. orglen]);
+            assert(equal(str, buf[0 .. orglen]));
+        }
     }
 
     // Type erasure for console device
