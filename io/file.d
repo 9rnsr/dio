@@ -82,6 +82,8 @@ public:
         detach();
     }
 
+    @property HANDLE handle() { return hFile; }
+
     //
     //@property inout(HANDLE) handle() inout { return hFile; }
     //alias handle this;
@@ -277,6 +279,8 @@ Wrapping array with $(I source) interface.
 struct ArraySource(E)
 {
     const(E)[] array;
+
+    @property auto handle() { return array; }
 
     bool pull(ref E[] buf)
     {

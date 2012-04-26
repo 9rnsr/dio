@@ -209,6 +209,8 @@ template Sourced(Dev)
             device = d;
         }
 
+        @property auto handle() { return device.handle; }
+
         bool pull(ref E[] buf)
         {
             return device.pull(buf);
@@ -287,6 +289,8 @@ template Sinked(Dev)
             device = d;
         }
 
+        @property auto handle() { return device.handle; }
+
         bool push(ref const(E)[] buf)
         {
             return device.push(buf);
@@ -363,6 +367,8 @@ template Buffered(Dev)
             device = d;
             buffer.length = bufferSize;
         }
+
+        @property auto handle() { return device.handle; }
 
       static if (isSink!Dev)
         ~this()
@@ -576,6 +582,8 @@ template Coerced(E, Dev)
         {
             device = d;
         }
+
+        @property auto handle() { return device.handle; }
 
       static if (isSource!Dev)
         bool pull(ref E[] buf)

@@ -47,6 +47,8 @@ struct TcpSocket
         }
     }
 
+    @property auto handle() { return socket; }
+
     /**
     */
     bool pull(ref ubyte[] buf)
