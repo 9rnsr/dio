@@ -375,6 +375,11 @@ public:
                 throw new Exception("");
         }
     }
+
+    void flush()
+    {
+        device.flush();
+    }
   }
 }
 
@@ -621,6 +626,8 @@ version(Windows)
         void put(const( char)[] data) { return con ? cport.put(data) : fport.put(data); }
         void put(const(wchar)[] data) { return con ? cport.put(data) : fport.put(data); }
         void put(const(dchar)[] data) { return con ? cport.put(data) : fport.put(data); }
+
+        void flush() { con ? cport.flush() : fport.flush(); }
       }
     }
 
