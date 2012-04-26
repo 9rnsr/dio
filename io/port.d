@@ -623,7 +623,7 @@ version(Windows)
       }
     }
 
-    /+unittest
+    unittest
     {
         HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
         assert(GetFileType(hStdIn) == FILE_TYPE_CHAR);
@@ -655,7 +655,7 @@ version(Windows)
         //std.stdio.writefln("s   = [%(%02X %)]", cast(ubyte[])s);    // as UTF-8
         //std.stdio.writefln("str = [%(%02X %)]", cast(ubyte[])str);  // as UTF-8
         assert(s == str);
-    }+/
+    }
     unittest
     {
         import std.algorithm, std.range, std.typetuple, std.conv;

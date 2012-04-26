@@ -358,6 +358,8 @@ template Buffered(Dev)
         static if (isSource!Dev) size_t ava_start = 0, ava_end = 0;
         static if (isDevice!Dev) long base_pos = 0;
 
+        int _dummy;
+
     public:
         /**
         */
