@@ -43,11 +43,28 @@ template isSource(Dev)
 }
 
 /**
+Returns $(D true) if $(D Dev) is a $(I sink). It must define the
+primitive $(D push).
+
+$(D push) operation provides synchronous but non-blocking output.
+*/
+template isSink(Dev)
+{
+    enum isSink = is(typeof(
+    {
+        Dev d;
+        alias DeviceElementType!Dev E;
+        const(E)[] buf;
+        do {} while (d.push(buf));
+    }));
+}
+
+/**
 Returns $(D true) if $(D Dev) is a buffered $(I source). It must define the
 three primitives, $(D fetch), $(D available), and $(D consume).
 
-In definition, initial state of pool has 0 length $(D available).
-It assumes that the pool is not $(D fetch)-ed yet.
+In definition, initial state of buffered $(I source) has 0 length $(D available).
+It assumes that the buffer is not $(D fetch)-ed yet.
 */
 template isBufferedSource(Dev)
 {
@@ -77,23 +94,6 @@ template isBufferedSink(Dev)
         d.writable[0] = E.init;
         d.commit(1);
         if (d.flush()){}
-    }));
-}
-
-/**
-Returns $(D true) if $(D Dev) is a $(I sink). It must define the
-primitive $(D push).
-
-$(D push) operation provides synchronous but non-blocking output.
-*/
-template isSink(Dev)
-{
-    enum isSink = is(typeof(
-    {
-        Dev d;
-        alias DeviceElementType!Dev E;
-        const(E)[] buf;
-        do {} while (d.push(buf));
     }));
 }
 
@@ -137,21 +137,6 @@ interface Source(E)
 }
 
 /**
-Provides runtime buffered $(I source) interface.
-*/
-interface BufferedSource(E) : Source!E
-{
-    ///
-    bool fetch();
-
-    ///
-    @property const(E)[] available() const;
-
-    ///
-    void consume(size_t n);
-}
-
-/**
 Provides runtime $(I sink) interface.
 */
 interface Sink(E)
@@ -161,18 +146,33 @@ interface Sink(E)
 }
 
 /**
+Provides runtime buffered $(I source) interface.
+*/
+interface BufferedSource(E) : Source!E
+{
+    ///
+    bool fetch();
+
+    /// ditto
+    @property const(E)[] available() const;
+
+    /// ditto
+    void consume(size_t n);
+}
+
+/**
 Provides runtime buffered $(I sink) interface.
 */
 interface BufferedSink(E) : Sink!E
 {
     ///
-    bool commit(size_t n);
+    bool flush();
 
-    ///
+    /// ditto
     @property E[] writable();
 
-    ///
-    bool flush();
+    /// ditto
+    bool commit(size_t n);
 }
 
 /**
@@ -180,14 +180,17 @@ Provides runtime seekable interface.
 */
 interface Seekable
 {
+    ///
     @property bool seekable();
+
+    /// ditto
     ulong seek(long offset, SeekPos whence);
 }
 
 
 /**
 Disable sink interface of $(D device).
-If $(D device) has pool interface, keep it.
+If $(D device) has buffered interface, keep it.
 */
 template Sourced(Dev)
 {
@@ -688,7 +691,7 @@ unittest
 /**
 Generate possible range interface from $(D device).
 
-If $(D device) is a $(I pool), input range interface is available.
+If $(D device) is a buffered $(I source), input range interface is available.
 If $(D device) is a $(I sink), output range interface is available.
 
 If original $(D device) element is Unicode character, supports decoding and

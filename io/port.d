@@ -14,9 +14,11 @@ private template isNarrowChar(T)
     enum isNarrowChar = is(Unqual!T == char) || is(Unqual!T == wchar);
 }
 
+/**
+*/
 File stdin;
-File stdout;
-File stderr;
+File stdout;    /// ditto
+File stderr;    /// ditto
 
 static this()
 {
@@ -29,17 +31,19 @@ static this()
     }
 }
 
+/**
+*/
 @property auto din() { return stdin.textPort(); }
-@property auto dout() { return stdout.textPort(); }
-@property auto derr() { return stderr.textPort(); }
+@property auto dout() { return stdout.textPort(); } /// ditto
+@property auto derr() { return stderr.textPort(); } /// ditto
 
 /**
-基底のデバイスにフィルタを掛けてテキストIOが可能なPortを構成する。
-このポートによるIOでは以下の変換が行われる
-・UTF-8/16/32変換、ubyteを入出力可能なデバイスはUTF-8として扱われる
-・改行変換、入力時は\r,\n,\r\nを\nに変換し、出力時は指定の改行に置き換える
-・バッファリング、入力では固定サイズのバッファリングが、出力時は
-  行単位でのバッファリングがデフォルトで行われる
+Configure text I/O port with following translations:
+$(UL
+$(LI Unicode transcoding. If original device element is ubyte, treats as UTF-8 device.)
+$(LI New-line conversion, replace $(D '\r'), $(D '\n'), $(D '\r\n') to $(D '\n') for input, and vice versa.)
+$(LI Buffering. For output, line buffering is done.)
+)
 */
 auto textPort(Dev)(Dev device)
 if (isSomeChar!(DeviceElementType!Dev) ||
@@ -117,9 +121,7 @@ if (isSomeChar!(DeviceElementType!Dev) ||
 
         WindowsTextPort wport;
 
-        // deviceがFileかつConsoleの場合、これをubyte->UTF16にcoerceして扱う
-        // ユーザーが同様のことを「ユーザー定義の」file deviceで行う場合、
-        // wcharを入出力するdeviceとしてtextPortに渡してやればよい
+        // If original device is character file, I/O UTF-16 encodings.
         if (GetFileType(device.handle) == FILE_TYPE_CHAR)
         {
             wport.con = true;
@@ -138,26 +140,27 @@ if (isSomeChar!(DeviceElementType!Dev) ||
     }
 }
 
-/*
-(Lock original device automatically.)
+/**
+Implementation of text port.
  */
 struct TextPort(Dev)
-if ((isBufferedSource!Dev ||
-     isBufferedSink!Dev) &&
-    isSomeChar!(DeviceElementType!Dev))
 {
 private:
     alias Unqual!(DeviceElementType!Dev) B;
     alias Select!(isNarrowChar!B, dchar, B) E;
+    static assert(isBufferedSource!Dev || isBufferedSink!Dev);
+    static assert(isSomeChar!B);
 
     Dev device;
     bool eof;
     dchar front_val; bool front_ok;
 
 public:
-    // character input range
   static if (isSource!Dev)
   {
+    /**
+    Provides character input range if original device is $(I source).
+    */
     @property bool empty()
     {
         while (device.available.length == 0 && !eof)
@@ -166,6 +169,7 @@ public:
         return eof;
     }
 
+    /// ditto
     @property dchar front()
     {
         if (front_ok)
@@ -212,12 +216,14 @@ public:
         throw new Exception("Unexpected failure of fetching value form underlying device");
     }
 
+    /// ditto
     void popFront()
     {
         //device.consume(1);
         front_ok = false;
     }
 
+    /// for efficient character input range iteration.
     int opApply(scope int delegate(dchar) dg)
     {
         for(; !empty; popFront())
@@ -241,16 +247,19 @@ public:
     //}
   }
 
-    // character output range
   static if (isSink!Dev)
   {
     enum const(B)[] NativeNewline = "\r\n";
 
+    /**
+    Provides character output range if original device is $(I sink).
+    */
     void put()(dchar data)
     {
         put((&data)[0 .. 1]);
     }
 
+    /// ditto
     void put()(const(B)[] data)
     {
         immutable last = data.length - 1;
@@ -283,6 +292,7 @@ public:
         }
     }
 
+    /// ditto
     void put()(const(dchar)[] data) if (isNarrowChar!B)
     {
         // with encoding
@@ -307,6 +317,7 @@ public:
         }
     }
 
+    /// ditto
     void put(C)(const(C)[] data) if (isNarrowChar!C && !is(B == C))
     {
         // with transcoding from narrows

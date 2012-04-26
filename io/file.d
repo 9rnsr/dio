@@ -108,8 +108,7 @@ public:
         pRefCounter = new size_t;
         *pRefCounter = 1;
     }
-    /**
-    */
+    /// ditto
     void detach()
     {
         if (pRefCounter)

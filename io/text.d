@@ -35,7 +35,7 @@ else
 }
 
 /**
-Lined receives pool of char, and makes input range of lines separated $(D delim).
+Lined receives buffered $(I source) of char, and makes input range of lines separated $(D delim).
 Naming:
     LineReader?
     LineStream?
