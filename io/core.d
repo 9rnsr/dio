@@ -245,13 +245,10 @@ template Sourced(Dev)
     return device;
 }
 
-version(unittest)
-{
-    import io.file;
-    import io.buffer;
-}
 unittest
 {
+    import io.file;
+
     alias typeof(File.init.sourced) InputFile;
     static assert( isSource!InputFile);
     static assert(!isSink!InputFile);
@@ -315,13 +312,10 @@ template Sinked(Dev)
     return device;
 }
 
-version(unittest)
-{
-    import io.file;
-    import io.buffer;
-}
 unittest
 {
+    import io.file;
+
     alias typeof(File.init.sinked) OutputFile;
     static assert(!isSource!OutputFile);
     static assert( isSink!OutputFile);
@@ -680,13 +674,10 @@ template Coerced(E, Dev)
     return Coerced(device);
 }
 
-version(unittest)
-{
-    import io.file;
-    import io.buffer;
-}
 unittest
 {
+    import io.file;
+
     alias typeof(File.init.coerced!char) CharFile;
     static assert(is(DeviceElementType!CharFile == char));
 
@@ -840,14 +831,11 @@ template Ranged(Dev)
     return Ranged(device);
 }
 
-version(unittest)
-{
-    import io.file;
-    import io.buffer;
-    import std.algorithm;
-}
 unittest
 {
+    import io.file;
+    import std.algorithm;
+
     auto file = File(__FILE__).buffered.coerced!char.ranged;
     assert(startsWith(file, "//io.core module;\n"));
 }
