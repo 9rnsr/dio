@@ -20,6 +20,16 @@ File stdin;
 File stdout;    /// ditto
 File stderr;    /// ditto
 
+alias typeof({ return stdin.textPort(); }()) StdInTextPort;
+alias typeof({ return stdout.textPort(); }()) StdOutTextPort;
+alias typeof({ return stderr.textPort(); }()) StdErrTextPort;
+
+/**
+*/
+StdInTextPort din;
+StdOutTextPort dout;   /// ditto
+StdErrTextPort derr;   /// ditto
+
 static this()
 {
     version(Windows)
@@ -29,13 +39,97 @@ static this()
         stdout = File(GetStdHandle(STD_OUTPUT_HANDLE));
         stderr = File(GetStdHandle(STD_ERROR_HANDLE));
     }
+
+    din  = stdin.textPort();
+    dout = stdout.textPort();
+    derr = stderr.textPort();
+}
+
+
+/**
+Output $(D args) to $(D writer).
+*/
+void write(Writer, T...)(Writer writer, T args)
+    if (is(typeof({ put(writer, ""); })) && T.length > 0)
+{
+    import std.conv, std.traits;
+    foreach (i, ref arg; args)
+    {
+        static if (isSomeString!(typeof(arg)))
+            put(writer, arg);
+        else
+            put(writer, to!string(arg));
+    }
+}
+/// ditto
+void writef(Writer, T...)(Writer writer, T args)
+    if (is(typeof({ put(writer, ""); })) && T.length > 0)
+{
+    import std.format;
+    formattedWrite(writer, args);
+}
+/// ditto
+void writeln(Writer, T...)(Writer writer, T args)
+    if (is(typeof({ put(writer, ""); })))
+{
+    write(writer, args, "\n");
+}
+/// ditto
+void writefln(Writer, T...)(Writer writer, T args)
+    if (is(typeof({ put(writer, ""); })) && T.length > 0)
+{
+    writef(writer, args, "\n");
 }
 
 /**
+Output $(D args) to $(D io.port.dout).
 */
-@property auto din() { return stdin.textPort(); }
-@property auto dout() { return stdout.textPort(); } /// ditto
-@property auto derr() { return stderr.textPort(); } /// ditto
+void write(T...)(T args)
+    if (T.length > 0 && !is(typeof({ put(args[0], ""); })))
+{
+    auto w = dout;
+    write(w, args);
+}
+/// ditto
+void writef(T...)(T args)
+    if (T.length > 0 && !is(typeof({ put(args[0], ""); })))
+{
+    auto w = dout;
+    writef(w, args);
+}
+
+/// ditto
+void writeln(T...)(T args)
+    if (T.length == 0 || !is(typeof({ put(args[0], ""); })))
+{
+    auto w = dout;
+    writeln(w, args);
+}
+/// ditto
+void writefln(T...)(T args)
+    if (T.length > 0 && !is(typeof({ put(args[0], ""); })))
+{
+    auto w = dout;
+    writefln(w, args);
+}
+
+/**
+Input $(D data)s from $(D reader) with specified $(D format).
+*/
+uint readf(Reader, Data...)(Reader reader, in char[] format, Data data) if (isInputRange!Reader)
+{
+    import std.format;
+    return formattedRead(reader, format, data);
+}
+
+/**
+Input $(D data)s from $(D io.port.din).
+*/
+uint readf(Data...)(in char[] format, Data data)
+{
+    return readf(din, format, data);
+}
+
 
 /**
 Configure text I/O port with following translations:
