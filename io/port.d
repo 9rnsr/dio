@@ -281,6 +281,7 @@ public:
     /// ditto
     void put()(const(B)[] data)
     {
+        // direct output
         immutable last = data.length - 1;
     retry:
         foreach (i, e; data)
@@ -314,7 +315,7 @@ public:
     /// ditto
     void put()(const(dchar)[] data) if (isNarrowChar!B)
     {
-        // with encoding
+        // encode to narrow
         import std.utf;
         foreach (c; data)
         {
@@ -339,7 +340,7 @@ public:
     /// ditto
     void put(C)(const(C)[] data) if (isNarrowChar!C && !is(B == C))
     {
-        // with transcoding from narrows
+        // transcode between narrows
         import std.utf;
         size_t i = 0;
         while (i < data.length)
@@ -365,47 +366,22 @@ public:
   }
 }
 
-// with transcoding
+/// with/without transcoding
 struct LinePort(Dev, String : Char[], Char)
-if (!is(DeviceElementType!Dev == Unqual!Char))
-{
-    Dev device;
-
-public:
-    this(Dev dev)
-    {
-        device = dev;
-    }
-    @property bool empty() const
-    {
-        return true;
-    }
-    @property String front()
-    {
-        return null;
-    }
-    void popFront()
-    {
-    }
-}
-
-// without transcoding
-struct LinePort(Dev, String : Char[], Char)
-if (is(DeviceElementType!Dev == Unqual!Char))
 {
 private:
     static assert(isBufferedSource!Dev && isSomeChar!Char);
-    //static assert(is(DeviceElementType!Dev == Unqual!Char));
-    alias Unqual!Char MutableChar;
+    alias Unqual!(DeviceElementType!Dev) B;
+    alias Unqual!Char C;
 
+    import std.utf;
     import std.array : Appender;
 
     Dev device;
-    //Delim delim;
-    enum const(MutableChar)[] delim = "\n";
-    Appender!(MutableChar[]) buffer;
+    Appender!(C[]) buffer;
     String line;
     bool eof;
+    size_t dlen = 0;
 
 public:
     this(Dev dev)
@@ -433,19 +409,17 @@ public:
     in { assert(!empty); }
     body
     {
-        const(MutableChar)[] view;
-        const(MutableChar)[] nextline;
+        const(B)[] view;
+        const(C)[] nextline;
 
         bool fetchExact()   // fillAvailable?
         {
             view = device.available;
-            while (view.length == 0)
+            while (!view.length && device.fetch())
             {
-                if (!device.fetch())
-                    return false;
                 view = device.available;
             }
-            return true;
+            return view.length != 0;
         }
         if (!fetchExact())
         {
@@ -453,14 +427,51 @@ public:
             return;
         }
 
+        if (dlen && view[0] == '\n')
+        {
+            dlen = 0;
+            device.consume(1);
+            view = view[1..$];
+            if (!view.length && !fetchExact())
+            {
+                eof = true;
+                return;
+            }
+        }
+
+        line = null;
         buffer.clear();
 
-        for (size_t vlen=0, dlen=0; ; )
+        C[] putBuffer(const(B)[] data)
+        {
+            static if (is(B == C))
+            {
+                // direct output
+                buffer.put(data);
+            }
+            else if (is(B == dchar))
+            {
+                // encode to narrow
+                C[C.sizeof == 1 ? 4 : 2] ubuf;
+                foreach (c; data)
+                    buffer.put(ubuf[0 .. encode(ubuf, c)]);
+            }
+            else
+            {
+                // transcoding between narrows
+                size_t i = 0;
+                C[C.sizeof == 1 ? 4 : 2] ubuf;
+                while (i < data.length)
+                    buffer.put(ubuf[0 .. encode(ubuf, decode(data, i))]);
+            }
+            return buffer.data;
+        }
+
+        for (size_t vlen=0; ; )
         {
             if (vlen == view.length)
             {
-                buffer.put(view);
-                nextline = buffer.data;
+                putBuffer(view);
                 device.consume(vlen);
                 if (!fetchExact())
                     break;
@@ -469,33 +480,45 @@ public:
                 continue;
             }
 
-            auto e = view[vlen];
-            ++vlen;
-            if (e == delim[dlen])
+            auto e = view[vlen++];
+            if (e == '\r')
             {
                 ++dlen;
-                if (dlen == delim.length)
+            Lnewline:
+                // can slice underlying buffer directly
+                static if (is(B == C))
+                if (!buffer.data.length)
                 {
-                    if (buffer.data.length)
-                    {
-                        buffer.put(view[0 .. vlen]);
-                        nextline = (buffer.data[0 .. $ - dlen]);
-                    }
-                    else
-                        nextline = view[0 .. vlen - dlen];
-
-                    device.consume(vlen);
-                    break;
+                    static if (is(Char == const))
+                        line = view[0 .. vlen-1];
+                    static if (is(Char == immutable))
+                        line = view[0 .. vlen-1].idup;
+                    goto Ldone;
                 }
+
+                // general case: copy to buffer
+                putBuffer(view[0 .. vlen-1]);
+
+            Ldone:
+                device.consume(vlen);
+                break;
+            }
+            else if (e == '\n')
+            {
+                assert(dlen == 0);
+                goto Lnewline;
             }
             else
                 dlen = 0;
         }
 
-      static if (is(Char == immutable))
-        line = nextline.idup;
-      else
-        line = nextline;
+        if (buffer.data.length)
+        {
+            static if (is(Char == immutable))
+                line = buffer.data.idup;
+            else    // mutable or const
+                line = buffer.data;
+        }
     }
 }
 
