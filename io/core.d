@@ -113,7 +113,8 @@ template isSeekable(Dev)
 {
     enum isSeekable = is(typeof({
         Dev d;
-        d.seek(0, SeekPos.Set);
+        if (d.seekable)
+            d.seek(0, SeekPos.Set);
     }()));
 }
 
@@ -179,6 +180,7 @@ Provides runtime seekable interface.
 */
 interface Seekable
 {
+    @property bool seekable();
     ulong seek(long offset, SeekPos whence);
 }
 
@@ -420,7 +422,10 @@ template Buffered(Dev)
             }
 
           static if (isDevice!Dev)
-            device.seek(base_pos + ava_end, SeekPos.Set);
+          {
+            if (device.seekable)
+                device.seek(base_pos + ava_end, SeekPos.Set);
+          }
 
             auto v = buffer[ava_end .. $];
             auto result = device.pull(v);
@@ -481,7 +486,10 @@ template Buffered(Dev)
                 return true;
 
           static if (isDevice!Dev)
-            device.seek(base_pos + rsv_start, SeekPos.Set);
+          {
+            if (device.seekable)
+                device.seek(base_pos + rsv_start, SeekPos.Set);
+          }
 
             const(E)[] rsv = buffer[rsv_start .. rsv_end];
             auto result = device.push(rsv);
@@ -650,10 +658,17 @@ template Coerced(E, Dev)
         }
 
       static if (isSeekable!Dev)
+      {
+        @property bool seekable()
+        {
+            return device.seekable;
+        }
+
         ulong seek(long offset, SeekPos whence)
         {
             return device.seek(offset, whence);
         }
+      }
 
       static if (is(typeof(device.flush())))
         bool flush()

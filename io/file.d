@@ -228,6 +228,13 @@ public:
 
     /**
     */
+    @property bool seekable()
+    {
+        return GetFileType(hFile) != FILE_TYPE_CHAR;
+    }
+
+    /**
+    */
     ulong seek(long offset, SeekPos whence)
     {
       version(Windows)
