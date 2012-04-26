@@ -82,7 +82,8 @@ void writeln(Writer, T...)(Writer writer, T args)
 void writefln(Writer, T...)(Writer writer, T args)
     if (is(typeof({ put(writer, ""); })) && T.length > 0)
 {
-    writef(writer, args, "\n");
+    writef(writer, args);
+    put(writer, "\n");
 }
 
 /**
