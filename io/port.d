@@ -174,8 +174,14 @@ private:
     Dev device;
     bool eof;
     dchar front_val; bool front_ok;
+    size_t dlen = 0;
 
 public:
+    this(Dev dev)
+    {
+        device = dev;
+    }
+
   static if (isSource!Dev)
   {
     /**
@@ -199,18 +205,23 @@ public:
         {
             import std.utf;
             B c = device.available[0];
-            if (c == '\r')
-            {
-                device.consume(1);
-                while (device.available.length == 0 && device.fetch()) {}
-                if (device.available.length == 0)
-                    goto err;
-                c = device.available[0];
-            }
             auto n = stride((&c)[0..1], 0);
             if (n == 1)
             {
                 device.consume(1);
+                if (dlen && c == '\n')
+                {
+                    while (device.available.length == 0 && device.fetch()) {}
+                    if (device.available.length == 0)
+                        goto err;
+                    c = device.available[0];
+                    dlen = 0;
+                }
+                else if (c == '\r')
+                {
+                    dlen = 1;
+                    c = '\n';
+                }
                 front_ok = true;
                 front_val = c;
                 return c;
