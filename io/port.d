@@ -8,6 +8,11 @@ import std.range, std.traits;
 
 //import core.stdc.stdio : printf;
 
+version(Windows)
+{
+    import sys.windows;
+}
+
 
 private template isNarrowChar(T)
 {
@@ -34,7 +39,6 @@ static this()
 {
     version(Windows)
     {
-        import sys.windows;
         stdin  = File(GetStdHandle(STD_INPUT_HANDLE));
         stdout = File(GetStdHandle(STD_OUTPUT_HANDLE));
         stderr = File(GetStdHandle(STD_ERROR_HANDLE));
@@ -143,93 +147,15 @@ auto textPort(Dev)(Dev device)
 if (isSomeChar!(DeviceElementType!Dev) ||
     is(DeviceElementType!Dev == ubyte))
 {
-    alias typeof({ return Dev.init.coerced!char.buffered; }()) LowDev;
-
-    version(Windows)
-    {
-        import sys.windows;
-        enum isWindows = true;
-    }
-    else
-        enum isWindows = false;
+    version(Windows) enum isWindows = true;
+    else             enum isWindows = false;
     static if (isWindows && is(typeof(device.handle) : HANDLE))
     {
-        import std.conv;
-        alias typeof({ return Dev.init.coerced!wchar.buffered; }()) ConDev;
-
-        // Type erasure for console device
-        static struct WindowsTextPort
-        {
-        private:
-            bool con;
-            union
-            {
-                TextPort!ConDev cport;
-                TextPort!LowDev fport;
-            }
-
-        public:
-            this(this)
-            {
-                con ? typeid(cport).postblit(&cport)
-                    : typeid(fport).postblit(&fport);
-            }
-            ~this()
-            {
-                con ? clear(cport) : clear(fport);
-            }
-
-          static if (isSource!Dev)
-          {
-            @property bool empty()
-            {
-                return con ? cport.empty : fport.empty;
-            }
-            @property dchar front()
-            {
-                return con ? cport.front : fport.front;
-            }
-            void popFront()
-            {
-                return con ? cport.popFront() : fport.popFront();
-            }
-            int opApply(scope int delegate(dchar) dg)
-            {
-                return con ? cport.opApply(dg) : fport.opApply(dg);
-            }
-
-            //auto lines(LineType = const(char)[])()
-            //{
-            //    return con ? cport.lines!LineType : fport.lines!LineType;
-            //}
-          }
-
-          static if (isSink!Dev)
-          {
-            void put(dchar data) { return con ? cport.put(data) : fport.put(data); }
-            void put(const( char)[] data) { return con ? cport.put(data) : fport.put(data); }
-            void put(const(wchar)[] data) { return con ? cport.put(data) : fport.put(data); }
-            void put(const(dchar)[] data) { return con ? cport.put(data) : fport.put(data); }
-          }
-        }
-
-        WindowsTextPort wport;
-
-        // If original device is character file, I/O UTF-16 encodings.
-        if (GetFileType(device.handle) == FILE_TYPE_CHAR)
-        {
-            wport.con = true;
-            emplace(&wport.cport, device.coerced!wchar.buffered);
-        }
-        else
-        {
-            wport.con = false;
-            emplace(&wport.fport, device.coerced!char.buffered);
-        }
-        return wport;
+        return WindowsTextPort!Dev(device);
     }
     else
     {
+        alias typeof({ return Dev.init.coerced!char.buffered; }()) LowDev;
         return TextPort!LowDev(device.coerced!char.buffered);
     }
 }
@@ -334,11 +260,10 @@ public:
     foreach (ln; stdin.textPort().lines) {}
     ---
     */
-    //auto lines(LineType = const(char)[])()
-    //{
-    //    return con ? cport.lines!LineType : fport.lines!LineType;
-    //    //return LinePort!(ForeachType!LineType)(this);
-    //}
+    @property auto lines(String = const(B)[])()
+    {
+        return LinePort!(Dev, String)(device);
+    }
   }
 
   static if (isSink!Dev)
@@ -438,4 +363,268 @@ public:
         }
     }
   }
+}
+
+// with transcoding
+struct LinePort(Dev, String : Char[], Char)
+if (!is(DeviceElementType!Dev == Unqual!Char))
+{
+    Dev device;
+
+public:
+    this(Dev dev)
+    {
+        device = dev;
+    }
+    @property bool empty() const
+    {
+        return true;
+    }
+    @property String front()
+    {
+        return null;
+    }
+    void popFront()
+    {
+    }
+}
+
+// without transcoding
+struct LinePort(Dev, String : Char[], Char)
+if (is(DeviceElementType!Dev == Unqual!Char))
+{
+private:
+    static assert(isBufferedSource!Dev && isSomeChar!Char);
+    //static assert(is(DeviceElementType!Dev == Unqual!Char));
+    alias Unqual!Char MutableChar;
+
+    import std.array : Appender;
+
+    Dev device;
+    //Delim delim;
+    enum const(MutableChar)[] delim = "\n";
+    Appender!(MutableChar[]) buffer;
+    String line;
+    bool eof;
+
+public:
+    this(Dev dev)
+    {
+        this.device = dev;
+        popFront();
+    }
+
+    /**
+    Provides line input range.
+    */
+    @property bool empty() const
+    {
+        return eof;
+    }
+
+    /// ditto
+    @property String front() const
+    {
+        return line;
+    }
+
+    /// ditto
+    void popFront()
+    in { assert(!empty); }
+    body
+    {
+        const(MutableChar)[] view;
+        const(MutableChar)[] nextline;
+
+        bool fetchExact()   // fillAvailable?
+        {
+            view = device.available;
+            while (view.length == 0)
+            {
+                if (!device.fetch())
+                    return false;
+                view = device.available;
+            }
+            return true;
+        }
+        if (!fetchExact())
+        {
+            eof = true;
+            return;
+        }
+
+        buffer.clear();
+
+        for (size_t vlen=0, dlen=0; ; )
+        {
+            if (vlen == view.length)
+            {
+                buffer.put(view);
+                nextline = buffer.data;
+                device.consume(vlen);
+                if (!fetchExact())
+                    break;
+
+                vlen = 0;
+                continue;
+            }
+
+            auto e = view[vlen];
+            ++vlen;
+            if (e == delim[dlen])
+            {
+                ++dlen;
+                if (dlen == delim.length)
+                {
+                    if (buffer.data.length)
+                    {
+                        buffer.put(view[0 .. vlen]);
+                        nextline = (buffer.data[0 .. $ - dlen]);
+                    }
+                    else
+                        nextline = view[0 .. vlen - dlen];
+
+                    device.consume(vlen);
+                    break;
+                }
+            }
+            else
+                dlen = 0;
+        }
+
+      static if (is(Char == immutable))
+        line = nextline.idup;
+      else
+        line = nextline;
+    }
+}
+
+// Type erasure for console device
+version(Windows)
+{
+    struct WindowsTextPort(Dev)
+    {
+    private:
+        alias typeof({ return Dev.init.coerced!wchar.buffered; }()) ConDev;
+        alias typeof({ return Dev.init.coerced!char.buffered; }()) LowDev;
+
+        bool con;
+        union
+        {
+            TextPort!ConDev cport;
+            TextPort!LowDev fport;
+        }
+
+    public:
+        this(ref Dev dev)
+        {
+            import std.conv;
+            // If original device is character file, I/O UTF-16 encodings.
+            if (GetFileType(dev.handle) == FILE_TYPE_CHAR)
+            {
+                con = true;
+                emplace(&cport, dev.coerced!wchar.buffered);
+            }
+            else
+            {
+                con = false;
+                emplace(&fport, dev.coerced!char.buffered);
+            }
+        }
+        this(this)
+        {
+            con ? typeid(cport).postblit(&cport)
+                : typeid(fport).postblit(&fport);
+        }
+        ~this()
+        {
+            con ? clear(cport) : clear(fport);
+        }
+
+      static if (isSource!Dev)
+      {
+        @property bool empty()
+        {
+            return con ? cport.empty : fport.empty;
+        }
+        @property dchar front()
+        {
+            return con ? cport.front : fport.front;
+        }
+        void popFront()
+        {
+            return con ? cport.popFront() : fport.popFront();
+        }
+        int opApply(scope int delegate(dchar) dg)
+        {
+            return con ? cport.opApply(dg) : fport.opApply(dg);
+        }
+
+        @property auto lines(String = const(char)[])()
+        {
+            return WindowsLinePort!(typeof(this), String)(this);
+        }
+      }
+
+      static if (isSink!Dev)
+      {
+        void put(dchar data) { return con ? cport.put(data) : fport.put(data); }
+        void put(const( char)[] data) { return con ? cport.put(data) : fport.put(data); }
+        void put(const(wchar)[] data) { return con ? cport.put(data) : fport.put(data); }
+        void put(const(dchar)[] data) { return con ? cport.put(data) : fport.put(data); }
+      }
+    }
+
+    // Type erasure for console device
+    struct WindowsLinePort(Dev, String)
+    {
+    private:
+        alias typeof({ return Dev.init.cport.lines!String; }()) ConDev;
+        alias typeof({ return Dev.init.fport.lines!String; }()) LowDev;
+
+        bool con;
+        union
+        {
+            ConDev clines;
+            LowDev flines;
+        }
+
+    public:
+        this(ref Dev dev)
+        {
+            import std.conv;
+            if (dev.con)
+            {
+                con = true;
+                emplace(&clines, dev.cport.lines!String);
+            }
+            else
+            {
+                con = false;
+                emplace(&flines, dev.fport.lines!String);
+            }
+        }
+        this(this)
+        {
+            con ? typeid(clines).postblit(&clines)
+                : typeid(flines).postblit(&flines);
+        }
+        ~this()
+        {
+            con ? clear(clines) : clear(flines);
+        }
+
+        @property bool empty()
+        {
+            return con ? clines.empty : flines.empty;
+        }
+        @property String front()
+        {
+            return con ? clines.front : flines.front;
+        }
+        void popFront()
+        {
+            return con ? clines.popFront() : flines.popFront();
+        }
+    }
 }
