@@ -150,7 +150,7 @@ public:
                     std.stdio.writefln("pull ok : hFile=%08X, buf.length=%s, size=%s, GetLastError()=%s",
                         cast(uint)hFile, buf.length, size, GetLastError());
                 debug(File)
-                    std.stdio.writefln("C buf[0 .. %d] = [%(%02X %)]", size, buf[0 .. size]);
+                    std.stdio.writefln("C buf[0 .. %d] = [%(%02X %)]", size, buf[0 .. size*2]);
                 buf = buf[size * 2 .. $];
                 return (size > 0);  // valid on only blocking read
             }

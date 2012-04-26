@@ -594,27 +594,32 @@ template Coerced(E, Dev)
         bool pull(ref E[] buf)
         {
             auto v = cast(ubyte[])buf;
+            auto w = v;
 
           static if (E.sizeof > 1)
             if (auto r = end - begin)
-            {
-                v[0 .. r] = remain[begin .. end];
                 v = v[r .. $];
-                begin = end = 0;
-            }
 
             auto result = device.pull(v);
             if (result)
             {
-                //writefln("encoded.pull : buf = %(%02X %)", cast(ubyte[])buf);
+                //static import std.stdio;
+                //std.stdio.writefln("encoded.pull : buf = %(%02X %)", cast(ubyte[])buf);
               static if (E.sizeof > 1)
-                if (auto r = E.sizeof - v.length % E.sizeof)
+              {
+                if (auto r = end - begin)
                 {
-                    remain[0..r] = v[$-r .. $];
-                    v = v[0 .. $-r];
-                    begin = 0, end = r;
-                    v = v[0 .. $-r];
+                    w[0 .. r] = remain[begin .. end];
+                    begin = end = 0;
                 }
+                auto nread = w.length - v.length;
+                if (auto r = nread % E.sizeof)
+                {
+                    remain[0..r] = w[nread-r .. nread];
+                    v = w[nread .. $];
+                    begin = 0, end = r;
+                }
+              }
                 buf = cast(E[])v;
             }
             return result;
