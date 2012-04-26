@@ -14,6 +14,25 @@ private template isNarrowChar(T)
     enum isNarrowChar = is(Unqual!T == char) || is(Unqual!T == wchar);
 }
 
+File stdin;
+File stdout;
+File stderr;
+
+static this()
+{
+    version(Windows)
+    {
+        import sys.windows;
+        stdin  = File(GetStdHandle(STD_INPUT_HANDLE));
+        stdout = File(GetStdHandle(STD_OUTPUT_HANDLE));
+        stderr = File(GetStdHandle(STD_ERROR_HANDLE));
+    }
+}
+
+@property auto din() { return stdin.textPort(); }
+@property auto dout() { return stdout.textPort(); }
+@property auto derr() { return stderr.textPort(); }
+
 /**
 基底のデバイスにフィルタを掛けてテキストIOが可能なPortを構成する。
 このポートによるIOでは以下の変換が行われる
