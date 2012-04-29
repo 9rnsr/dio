@@ -41,6 +41,7 @@ clean:
 	del lib\*.lib
 	del test\*.obj
 	del test\*.exe
+	del benchmarks\*.exe
 
 
 # test
@@ -53,6 +54,19 @@ test\unittest.exe: emptymain.d $(SRCS)
 	dmd $(DFLAGS) -of$@ -unittest emptymain.d $(SRCS)
 test\pipeinput.exe: test\pipeinput.d test\pipeinput.dat test\pipeinput.bat lib
 	dmd $(DFLAGS) -of$@ test\pipeinput.d $(IOLIB)
+
+
+# benchmark
+
+runbench: lib benchmarks\default_bench.exe
+	benchmarks\default_bench.exe
+runbench_opt: lib benchmarks\release_bench.exe
+	benchmarks\release_bench.exe
+
+benchmarks\default_bench.exe: benchmarks\bench.d
+	dmd $(DFLAGS) -of$@ benchmarks\bench.d $(IOLIB)
+benchmarks\release_bench.exe: benchmarks\bench.d
+	dmd $(DFLAGS) -O -release -noboundscheck -of$@ benchmarks\bench.d $(IOLIB)
 
 
 # ddoc

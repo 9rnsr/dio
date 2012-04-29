@@ -1,19 +1,31 @@
 import io.port, io.file;
-import std.random, std.datetime;
+import std.algorithm, std.range, std.random, std.datetime;
 
 void main()
 {
-    benchReadCharsFromFile();
-    benchReadLinesFromFile();
-    benchWriteCharsToFile();
+	auto results = map!(f => f())([
+        &benchReadCharsFromFile,
+        &benchReadLinesFromFile,
+        &benchWriteCharsToFile,
+        &benchWriteCharsToStdout,
+    ]).array();
+
+    writefln("rate\tdio\t\t\tstd.stdio");
+    foreach (t; results)
+    {
+        writefln("%1.4f\t%s\t%s",
+            cast(real)t[1].length / cast(real)t[0].length,
+            t[0],
+            t[1]);
+    }
 }
 
-void benchReadCharsFromFile()
+auto benchReadCharsFromFile()
 {
     enum count = 4096;
     auto fname = genXorthiftFile(count);
 
-    auto times = benchmark!(
+    return benchmark!(
         () @trusted
         {
             import io.port, io.file;
@@ -34,16 +46,14 @@ void benchReadCharsFromFile()
             }
         }
     )(500);
-    writefln(derr, "times[0] = %s, times[1] = %s, rate = %s",
-        times[0], times[1], cast(real)times[1].length / cast(real)times[0].length);
 }
 
-void benchReadLinesFromFile()
+auto benchReadLinesFromFile()
 {
     enum count = 4096;
     auto fname = genXorthiftFile(count);
 
-    auto times = benchmark!(
+    return benchmark!(
         () @trusted
         {
             foreach (ln; File(fname).textPort().lines)
@@ -55,8 +65,6 @@ void benchReadLinesFromFile()
             {}
         }
     )(20);  // cannot repeat 500
-    writefln(derr, "times[0] = %s, times[1] = %s, rate = %s",
-        times[0], times[1], cast(real)times[1].length / cast(real)times[0].length);
 }
 
 auto genXorthiftFile(size_t linecount)
@@ -75,12 +83,12 @@ auto genXorthiftFile(size_t linecount)
     return fname;
 }
 
-void benchWriteCharsToFile()
+auto benchWriteCharsToFile()
 {
     enum count = 4096;
     auto fname = "charout.txt";
 
-    auto times = benchmark!(
+    return benchmark!(
         () @trusted
         {
             auto f = File(fname, "w").textPort();
@@ -101,8 +109,29 @@ void benchWriteCharsToFile()
             f.writeln();    // flush buffer
         }
     )(500);
-    writefln(derr, "times[0] = %s, times[1] = %s, rate = %s",
-        times[0], times[1], cast(real)times[1].length / cast(real)times[0].length);
-    derr.flush();
 }
 
+auto benchWriteCharsToStdout()
+{
+    enum count = 4096;
+
+    return benchmark!(
+        () @trusted
+        {
+            foreach (i; 0 .. count)
+            {
+                writef("%s,", i);
+            }
+            writeln();      // flush buffer
+        },
+        () @trusted
+        {
+            import std.stdio;
+            foreach (i; 0 .. count)
+            {
+                writef("%s,", i);
+            }
+            writeln();      // flush line buffer
+        }
+    )(500);
+}
