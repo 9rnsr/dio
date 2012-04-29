@@ -3,7 +3,6 @@
 module io.port;
 
 import io.core, io.file;
-import util.typecons;
 import std.range, std.traits;
 
 //import core.stdc.stdio : printf;
@@ -61,7 +60,7 @@ void write(Writer, T...)(auto ref Writer writer, T args)
     else
         auto w = &writer;
 
-    import std.conv, std.traits;
+    import std.conv;
     foreach (i, ref arg; args)
     {
         static if (isSomeString!(typeof(arg)))
@@ -187,6 +186,8 @@ Implementation of text port.
 struct TextPort(Dev)
 {
 private:
+    import std.utf : stride, encode, decode;
+
     alias Unqual!(DeviceElementType!Dev) B;
     alias Select!(isNarrowChar!B, dchar, B) E;
     static assert(isBufferedSource!Dev || isBufferedSink!Dev);
@@ -226,7 +227,6 @@ public:
 
         static if (isNarrowChar!B)
         {
-            import std.utf;
             B c = device.available[0];
             auto n = stride((&c)[0..1], 0);
             if (n == 1)
@@ -350,7 +350,6 @@ public:
     void put()(const(dchar)[] data) if (isNarrowChar!B)
     {
         // encode to narrow
-        import std.utf;
         foreach (c; data)
         {
             if (c == '\n')
@@ -375,7 +374,6 @@ public:
     void put(C)(const(C)[] data) if (isNarrowChar!C && !is(B == C))
     {
         // transcode between narrows
-        import std.utf;
         size_t i = 0;
         while (i < data.length)
         {
@@ -405,7 +403,9 @@ public:
   }
 }
 
-/// with/without transcoding
+/**
+Generates line range over text port.
+*/
 struct LinePort(Dev, String : Char[], Char)
 {
 private:
@@ -413,7 +413,7 @@ private:
     alias Unqual!(DeviceElementType!Dev) B;
     alias Unqual!Char C;
 
-    import std.utf;
+    import std.utf : encode, decode;
     import std.array : Appender;
 
     Dev device;
@@ -581,6 +581,8 @@ version(Windows)
     struct WindowsTextPort(Dev)
     {
     private:
+        import std.conv : emplace;
+
         alias typeof({ return Dev.init.coerced!wchar.buffered; }()) ConDev;
         alias typeof({ return Dev.init.coerced!char.buffered; }()) LowDev;
 
@@ -594,7 +596,6 @@ version(Windows)
     public:
         this(ref Dev dev)
         {
-            import std.conv;
             // If original device is character file, I/O UTF-16 encodings.
             if (GetFileType(dev.handle) == FILE_TYPE_CHAR)
             {
@@ -724,6 +725,8 @@ version(Windows)
     struct WindowsLinePort(Dev, String)
     {
     private:
+        import std.conv : emplace;
+
         alias typeof({ return Dev.init.cport.lines!String; }()) ConDev;
         alias typeof({ return Dev.init.fport.lines!String; }()) LowDev;
 
@@ -737,7 +740,6 @@ version(Windows)
     public:
         this(ref Dev dev)
         {
-            import std.conv;
             if (dev.con)
             {
                 con = true;
