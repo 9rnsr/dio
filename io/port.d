@@ -157,7 +157,7 @@ if (isSomeChar!(DeviceElementType!Dev) ||
     else
     {
         alias typeof({ return Dev.init.coerced!char.buffered; }()) LowDev;
-        return TextPort!LowDev(device.coerced!char.buffered);
+        return TextPort!LowDev(device.coerced!char.buffered, false);
     }
 }
 
@@ -173,14 +173,16 @@ private:
     static assert(isSomeChar!B);
 
     Dev device;
+    bool lineflush;
     bool eof;
     dchar front_val; bool front_ok;
     size_t dlen = 0;
 
 public:
-    this(Dev dev)
+    this(Dev dev, bool lineOut)
     {
         device = dev;
+        lineflush = lineOut;
     }
 
   static if (isSource!Dev)
@@ -309,7 +311,7 @@ public:
                 while (device.push(buf) && buf.length) {}
                 if (buf.length)
                     throw new Exception("");
-                device.flush();
+                if (lineflush) device.flush();
 
                 data = data[i .. $];
                 goto retry;
@@ -320,7 +322,7 @@ public:
             while (device.push(data) && data.length) {}
             if (data.length)
                 throw new Exception("");
-            device.flush();
+            if (lineflush) device.flush();
         }
     }
 
@@ -337,7 +339,7 @@ public:
                 while (device.push(buf) && buf.length) {}
                 if (buf.length)
                     throw new Exception("");
-                device.flush();
+                if (lineflush) device.flush();
                 continue;
             }
 
@@ -364,7 +366,7 @@ public:
                 while (device.push(buf) && buf.length) {}
                 if (buf.length)
                     throw new Exception("");
-                device.flush();
+                if (lineflush) device.flush();
                 continue;
             }
 
@@ -577,12 +579,12 @@ version(Windows)
             if (GetFileType(dev.handle) == FILE_TYPE_CHAR)
             {
                 con = true;
-                emplace(&cport, dev.coerced!wchar.buffered);
+                emplace(&cport, dev.coerced!wchar.buffered, true);
             }
             else
             {
                 con = false;
-                emplace(&fport, dev.coerced!char.buffered);
+                emplace(&fport, dev.coerced!char.buffered, false);
             }
         }
         this(this)
