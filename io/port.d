@@ -333,7 +333,7 @@ public:
                     throw new Exception("");
                 if (lineflush) device.flush();
 
-                data = data[i .. $];
+                data = data[i+1 .. $];
                 goto retry;
             }
         }
