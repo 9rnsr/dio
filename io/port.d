@@ -53,37 +53,57 @@ static this()
 /**
 Output $(D args) to $(D writer).
 */
-void write(Writer, T...)(Writer writer, T args)
+void write(Writer, T...)(auto ref Writer writer, T args)
     if (is(typeof({ put(writer, ""); })) && T.length > 0)
 {
+    static if (isPointer!Writer)
+        alias writer w;
+    else
+        auto w = &writer;
+
     import std.conv, std.traits;
     foreach (i, ref arg; args)
     {
         static if (isSomeString!(typeof(arg)))
-            put(writer, arg);
+            put(w, arg);
         else
-            put(writer, to!string(arg));
+            put(w, to!string(arg));
     }
 }
 /// ditto
-void writef(Writer, T...)(Writer writer, T args)
+void writef(Writer, T...)(auto ref Writer writer, T args)
     if (is(typeof({ put(writer, ""); })) && T.length > 0)
 {
+    static if (isPointer!Writer)
+        alias writer w;
+    else
+        auto w = &writer;
+
     import std.format;
-    formattedWrite(writer, args);
+    formattedWrite(w, args);
 }
 /// ditto
-void writeln(Writer, T...)(Writer writer, T args)
+void writeln(Writer, T...)(auto ref Writer writer, T args)
     if (is(typeof({ put(writer, ""); })))
 {
-    write(writer, args, "\n");
+    static if (isPointer!Writer)
+        alias writer w;
+    else
+        auto w = &writer;
+
+    write(w, args, "\n");
 }
 /// ditto
-void writefln(Writer, T...)(Writer writer, T args)
+void writefln(Writer, T...)(auto ref Writer writer, T args)
     if (is(typeof({ put(writer, ""); })) && T.length > 0)
 {
-    writef(writer, args);
-    put(writer, "\n");
+    static if (isPointer!Writer)
+        alias writer w;
+    else
+        auto w = &writer;
+
+    writef(w, args);
+    put(w, "\n");
 }
 
 /**
@@ -92,14 +112,14 @@ Output $(D args) to $(D io.port.dout).
 void write(T...)(T args)
     if (T.length > 0 && !is(typeof({ put(args[0], ""); })))
 {
-    auto w = dout;
+    auto w = &dout;
     write(w, args);
 }
 /// ditto
 void writef(T...)(T args)
     if (T.length > 0 && !is(typeof({ put(args[0], ""); })))
 {
-    auto w = dout;
+    auto w = &dout;
     writef(w, args);
 }
 
@@ -107,14 +127,14 @@ void writef(T...)(T args)
 void writeln(T...)(T args)
     if (T.length == 0 || !is(typeof({ put(args[0], ""); })))
 {
-    auto w = dout;
+    auto w = &dout;
     writeln(w, args);
 }
 /// ditto
 void writefln(T...)(T args)
     if (T.length > 0 && !is(typeof({ put(args[0], ""); })))
 {
-    auto w = dout;
+    auto w = &dout;
     writefln(w, args);
 }
 
