@@ -5,6 +5,15 @@ version(Windows)
 {
     import sys.windows;
 }
+else version(Posix)
+{
+    import core.sys.posix.sys.types;
+    import core.sys.posix.sys.stat;
+    import core.sys.posix.fcntl;
+    import core.sys.posix.unistd;
+    import core.stdc.errno;
+    alias int HANDLE;
+}
 
 debug
 {
@@ -25,6 +34,27 @@ public:
     */
     this(string fname, in char[] mode = "r")
     {
+      version(Posix)
+      {
+        int flags;
+        switch (mode)
+        {
+            case "r":
+                flags = O_RDONLY;
+                break;
+            case "w":
+            case "a":
+            case "r+":
+            case "w+":
+            case "a+":
+            default:
+                assert(0);
+                break;
+        }
+        attach(open(fname.ptr, flags | O_NONBLOCK));
+      }
+      else
+      {
         int share = FILE_SHARE_READ | FILE_SHARE_WRITE;
         int access = void;
         int createMode = void;
@@ -67,6 +97,7 @@ public:
 
         attach(CreateFileW(std.utf.toUTFz!(const(wchar)*)(fname),
                            access, share, null, createMode, 0, null));
+      }
     }
     package this(HANDLE h)
     {
@@ -116,7 +147,10 @@ public:
             if (--(*pRefCounter) == 0)
             {
                 //delete pRefCounter;   // trivial: delegate management to GC.
-                CloseHandle(cast(HANDLE)hFile);
+                version(Windows)
+                    CloseHandle(hFile);
+                version(Posix)
+                    close(hFile);
             }
             //pRefCounter = null;       // trivial: do not need
         }
@@ -139,6 +173,22 @@ public:
         debug(File)
             std.stdio.writefln("ReadFile : buf.ptr=%08X, len=%s", cast(uint)buf.ptr, buf.length);
 
+      version(Posix)
+      {
+        int n = read(hFile, buf.ptr, buf.length);
+        if (n >= 0)
+        {
+            buf = buf[n .. $];
+            return (n > 0);
+        }
+        if (errno == EAGAIN)
+        {
+            return true;
+        }
+        throw new Exception("pull(ref buf[]) error");
+      }
+      version(Windows)
+      {
         DWORD size = void;
 
         // Reading console input always returns UTF-16
@@ -186,12 +236,19 @@ public:
         //  // for overlapped I/O
         //  eof = (GetLastError() == ERROR_HANDLE_EOF);
         }
+      }
     }
 
     /**
     */
     bool push(ref const(ubyte)[] buf)
     {
+      version(Posix)
+      {
+        return false;
+      }
+      version(Windows)
+      {
         DWORD size = void;
         if (GetFileType(hFile) == FILE_TYPE_CHAR)
         {
@@ -218,18 +275,33 @@ public:
         {
             throw new Exception("push error");  //?
         }
+      }
     }
 
     bool flush()
     {
+      version(Posix)
+      {
+        return false; //todo
+      }
+      version(Windows)
+      {
         return FlushFileBuffers(hFile) != FALSE;
+      }
     }
 
     /**
     */
     @property bool seekable()
     {
+      version(Posix)
+      {
+        return false; //todo
+      }
+      version(Windows)
+      {
         return GetFileType(hFile) != FILE_TYPE_CHAR;
+      }
     }
 
     /**
