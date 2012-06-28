@@ -26,7 +26,14 @@ File is seekable device.
 struct File
 {
 private:
-    HANDLE hFile;
+  version(Windows)
+  {
+    HANDLE hFile = null;
+  }
+  version(Posix)
+  {
+    private HANDLE hFile = -1;
+  }
     size_t* pRefCounter;
 
 public:
@@ -54,8 +61,27 @@ public:
                 break;
         }
         attach(open(fname.ptr, flags | O_NONBLOCK));
+version(none)
+{
+        int share = octal!666;
+        int access;
+        int createMode;
+        if (mode & FileMode.In)
+            access = O_RDONLY;
+        if (mode & FileMode.Out)
+        {
+            createMode = O_CREAT;   // will create if not present
+            access = O_WRONLY;
+        }
+        if (access == (O_WRONLY | O_RDONLY))
+            access = O_RDWR;
+        if ((mode & FileMode.OutNew) == FileMode.OutNew)
+            access |= O_TRUNC;      // resets file
+        attach(h = core.sys.posix.fcntl.open(toUTFz(filename),
+                                             access | createMode, share));
+}
       }
-      else
+      version(Windows)
       {
         int share = FILE_SHARE_READ | FILE_SHARE_WRITE;
         int access = void;
@@ -149,10 +175,16 @@ public:
             if (--(*pRefCounter) == 0)
             {
                 //delete pRefCounter;   // trivial: delegate management to GC.
-                version(Windows)
-                    CloseHandle(hFile);
-                version(Posix)
-                    close(hFile);
+              version(Windows)
+              {
+                CloseHandle(hFile);
+                hFile = null;
+              }
+              version(Posix)
+              {
+                core.sys.posix.unistd.close(hFile);
+                hFile = -1;
+              }
             }
             //pRefCounter = null;       // trivial: do not need
         }
@@ -177,17 +209,23 @@ public:
 
       version(Posix)
       {
-        int n = read(hFile, buf.ptr, buf.length);
+        int n = core.sys.posix.unistd.read(hFile, buf.ptr, buf.length);
         if (n >= 0)
         {
             buf = buf[n .. $];
             return (n > 0);
         }
-        if (errno == EAGAIN)
+        else
         {
-            return true;
+            switch (errno)
+            {
+                case EAGAIN:
+                    return true;
+                default:
+                    break;
+            }
+            throw new Exception("pull(ref buf[]) error");
         }
-        throw new Exception("pull(ref buf[]) error");
       }
       version(Windows)
       {
@@ -247,21 +285,25 @@ public:
     {
       version(Posix)
       {
-        int n = write(hFile, buf.ptr, buf.length);
+        int n = core.sys.posix.unistd.write(hFile, buf.ptr, buf.length);
         if (n >= 0)
         {
             buf = buf[n .. $];
             return (n > 0);
         }
-        if (errno == EPIPE)
+        else
         {
-            return false;
+            switch (errno)
+            {
+                case EAGAIN:
+                    return true;
+                case EPIPE:
+                    return false;
+                default:
+                    break;
+            }
+            throw new Exception("push error");  //?
         }
-        if (errno == EAGAIN)
-        {
-            return true;
-        }
-        throw new Exception("push error");
       }
       version(Windows)
       {
@@ -312,7 +354,17 @@ public:
     {
       version(Posix)
       {
-        return false; //todo
+        if (core.sys.posix.unistd.lseek(hFile, 0, SEEK_SET) == -1)
+        {
+            switch (errno)
+            {
+                case ESPIPE:
+                    return false;
+                default:
+                    break;
+            }
+        }
+        return true;
       }
       version(Windows)
       {
