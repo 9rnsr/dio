@@ -1,9 +1,7 @@
 SRCS=io/core.d \
 	io/file.d \
 	io/socket.d \
-	io/port.d \
-	util/typecons.d \
-	util/meta.d
+	io/port.d
 
 DFLAGS=-property -w -I.
 
@@ -16,7 +14,7 @@ DOCS=\
 DDOC=io.ddoc
 DDOCFLAGS=-D -Dd$(DDOCDIR) -c -o- $(DFLAGS)
 
-IOLIB=lib/libio
+IOLIB=lib/libio.a
 DEBLIB=lib/libio_debug
 
 
@@ -33,20 +31,19 @@ $(IOLIB): $(SRCS)
 #	dmd -lib -of$@ $(DFLAGS) -g $(SRCS)
 
 clean:
-	rm lib/*
-	rm test/*.o
-	rm test/*.exe
-	rm html/d/*.html
-	rm benchmarks/*.exe
+	rm -f lib/*
+	rm -f test/*.o
+#	rm test/*.exe
+	rm -f html/d/*.html
+#	rm -f benchmarks/*.exe
 
 
 # test
 
-runtest: lib test/unittest.exe test/pipeinput.exe
-	test/unittest.exe
-	test/pipeinput.bat
+runtest: lib unittest
+	./unittest
 
-test/unittest.exe: emptymain.d $(SRCS)
+unittest: emptymain.d $(SRCS)
 	dmd $(DFLAGS) -of$@ -unittest emptymain.d $(SRCS)
 test/pipeinput.exe: test/pipeinput.d test/pipeinput.dat test/pipeinput.bat lib
 	dmd $(DFLAGS) -of$@ test/pipeinput.d $(IOLIB)
@@ -54,12 +51,12 @@ test/pipeinput.exe: test/pipeinput.d test/pipeinput.dat test/pipeinput.bat lib
 
 # benchmark
 
-runbench: lib benchmarks/default_bench.exe
-	benchmarks/default_bench.exe
-runbench_opt: lib benchmarks/release_bench.exe
-	benchmarks/release_bench.exe
+runbench: lib benchmarks/default_bench
+	benchmarks/default_bench
+runbench_opt: lib benchmarks/release_bench
+	benchmarks/release_bench
 
-benchmarks\default_bench.exe: benchmarks/bench.d
+benchmarks/default_bench: benchmarks/bench.d
 	dmd $(DFLAGS) -of$@ benchmarks/bench.d $(IOLIB)
 benchmarks/release_bench.exe: benchmarks/bench.d
 	dmd $(DFLAGS) -O -release -noboundscheck -of$@ benchmarks/bench.d $(IOLIB)

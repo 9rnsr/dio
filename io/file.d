@@ -43,6 +43,8 @@ public:
                 flags = O_RDONLY;
                 break;
             case "w":
+                flags = O_WRONLY;
+                break;
             case "a":
             case "r+":
             case "w+":
@@ -245,7 +247,21 @@ public:
     {
       version(Posix)
       {
-        return false;
+        int n = write(hFile, buf.ptr, buf.length);
+        if (n >= 0)
+        {
+            buf = buf[n .. $];
+            return (n > 0);
+        }
+        if (errno == EPIPE)
+        {
+            return false;
+        }
+        if (errno == EAGAIN)
+        {
+            return true;
+        }
+        throw new Exception("push error");
       }
       version(Windows)
       {
@@ -382,7 +398,7 @@ struct ArraySource(E)
 
 unittest
 {
-    import io.text;
+    import io.port;
 
     auto r = ArraySource!char("10\r\ntest\r\n").buffered.ranged;
     long num;
