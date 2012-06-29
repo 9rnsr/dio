@@ -111,7 +111,7 @@ public:
     /// ditto
     void detach()
     {
-        if (pRefCounter)
+        if (pRefCounter && *pRefCounter > 0)
         {
             if (--(*pRefCounter) == 0)
             {

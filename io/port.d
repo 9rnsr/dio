@@ -227,18 +227,18 @@ public:
 
         static if (isNarrowChar!B)
         {
+        Lagain:
             B c = device.available[0];
             auto n = stride((&c)[0..1], 0);
             if (n == 1)
             {
                 device.consume(1);
-                if (dlen && c == '\n')
+                if (dlen && (dlen = 0, c == '\n'))
                 {
                     while (device.available.length == 0 && device.fetch()) {}
                     if (device.available.length == 0)
                         goto err;
-                    c = device.available[0];
-                    dlen = 0;
+                    goto Lagain;
                 }
                 else if (c == '\r')
                 {
@@ -587,54 +587,70 @@ version(Windows)
         alias typeof({ return Dev.init.coerced!char.buffered; }()) LowDev;
 
         bool con;
-        union
+        union X
         {
             TextPort!ConDev cport;
             TextPort!LowDev fport;
         }
+        ubyte[X.sizeof]* payload;
+        @property ref X store() { return *cast(X*)payload.ptr; }
+        size_t* pRefCounter;
+        import core.stdc.stdlib;
 
     public:
         this(ref Dev dev)
         {
+            payload = cast(typeof(payload))malloc(typeof(*payload).sizeof);
             // If original device is character file, I/O UTF-16 encodings.
             if (GetFileType(dev.handle) == FILE_TYPE_CHAR)
             {
                 con = true;
-                emplace(&cport, dev.coerced!wchar.buffered, true);
+                emplace(&store.cport, dev.coerced!wchar.buffered, true);
             }
             else
             {
                 con = false;
-                emplace(&fport, dev.coerced!char.buffered, false);
+                emplace(&store.fport, dev.coerced!char.buffered, false);
             }
+            pRefCounter = new size_t;
+            *pRefCounter = 1;
         }
         this(this)
         {
-            con ? typeid(cport).postblit(&cport)
-                : typeid(fport).postblit(&fport);
+            if (pRefCounter)
+                ++(*pRefCounter);
+            //con ? typeid(store().cport).postblit(&store.cport)
+            //    : typeid(store().fport).postblit(&store.fport);
         }
         ~this()
         {
-            con ? clear(cport) : clear(fport);
+            if (pRefCounter && *pRefCounter > 0)
+            {
+                if (--(*pRefCounter) == 0)
+                {
+                    con ? clear(store.cport) : clear(store.fport);
+                    free(payload);
+                }
+            }
         }
 
       static if (isSource!Dev)
       {
         @property bool empty()
         {
-            return con ? cport.empty : fport.empty;
+            return con ? store.cport.empty : store.fport.empty;
         }
         @property dchar front()
         {
-            return con ? cport.front : fport.front;
+            return con ? store.cport.front : store.fport.front;
         }
         void popFront()
         {
-            return con ? cport.popFront() : fport.popFront();
+            return con ? store.cport.popFront() : store.fport.popFront();
         }
         int opApply(scope int delegate(dchar) dg)
         {
-            return con ? cport.opApply(dg) : fport.opApply(dg);
+            return con ? store.cport.opApply(dg) : store.fport.opApply(dg);
         }
 
         @property auto lines(String = const(char)[])()
@@ -645,12 +661,12 @@ version(Windows)
 
       static if (isSink!Dev)
       {
-        void put(dchar data) { return con ? cport.put(data) : fport.put(data); }
-        void put(const( char)[] data) { return con ? cport.put(data) : fport.put(data); }
-        void put(const(wchar)[] data) { return con ? cport.put(data) : fport.put(data); }
-        void put(const(dchar)[] data) { return con ? cport.put(data) : fport.put(data); }
+        void put(dchar data) { return con ? store.cport.put(data) : store.fport.put(data); }
+        void put(const( char)[] data) { return con ? store.cport.put(data) : store.fport.put(data); }
+        void put(const(wchar)[] data) { return con ? store.cport.put(data) : store.fport.put(data); }
+        void put(const(dchar)[] data) { return con ? store.cport.put(data) : store.fport.put(data); }
 
-        void flush() { con ? cport.flush() : fport.flush(); }
+        void flush() { con ? store.cport.flush() : store.fport.flush(); }
       }
     }
 
@@ -727,8 +743,8 @@ version(Windows)
     private:
         import std.conv : emplace;
 
-        alias typeof({ return Dev.init.cport.lines!String; }()) ConDev;
-        alias typeof({ return Dev.init.fport.lines!String; }()) LowDev;
+        alias typeof({ return Dev.init.store.cport.lines!String; }()) ConDev;
+        alias typeof({ return Dev.init.store.fport.lines!String; }()) LowDev;
 
         bool con;
         union
@@ -743,12 +759,12 @@ version(Windows)
             if (dev.con)
             {
                 con = true;
-                emplace(&clines, dev.cport.lines!String);
+                emplace(&clines, dev.store.cport.lines!String);
             }
             else
             {
                 con = false;
-                emplace(&flines, dev.fport.lines!String);
+                emplace(&flines, dev.store.fport.lines!String);
             }
         }
         this(this)
