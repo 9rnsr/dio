@@ -1,13 +1,14 @@
-SRCS=io\core.d \
-	io\file.d \
-	io\socket.d \
-	io\port.d \
-	sys\windows.d \
-	util\typecons.d \
-	util\meta.d \
-	util\metastrings_expand.d
+SRCDIR=src
+SRCS=$(SRCDIR)\io\core.d \
+	$(SRCDIR)\io\file.d \
+	$(SRCDIR)\io\socket.d \
+	$(SRCDIR)\io\port.d \
+	$(SRCDIR)\sys\windows.d \
+	$(SRCDIR)\util\typecons.d \
+	$(SRCDIR)\util\meta.d \
+	$(SRCDIR)\util\metastrings_expand.d
 
-DFLAGS=-property -w -I.
+DFLAGS=-property -w -I$(SRCDIR)
 
 DDOCDIR=html\d
 DOCS=\
@@ -36,11 +37,9 @@ $(IOLIB): $(SRCS)
 #	dmd -lib -of$@ $(DFLAGS) -g $(SRCS)
 
 clean:
-	del lib\*.lib
-	del test\*.obj
-	del test\*.exe
-	del html\d\*.html
-	del benchmarks\*.exe
+	rmdir /S /Q lib  2> NUL
+	del /Q test\*.obj test\*.exe  2> NUL
+	del /Q html\d\*.html  2> NUL
 
 
 # test
@@ -57,15 +56,15 @@ test\pipeinput.exe: test\pipeinput.d test\pipeinput.dat test\pipeinput.bat lib
 
 # benchmark
 
-runbench: lib benchmarks\default_bench.exe
-	benchmarks\default_bench.exe
-runbench_opt: lib benchmarks\release_bench.exe
-	benchmarks\release_bench.exe
+runbench: lib test\default_bench.exe
+	test\default_bench.exe
+runbench_opt: lib test\release_bench.exe
+	test\release_bench.exe
 
-benchmarks\default_bench.exe: benchmarks\bench.d
-	dmd $(DFLAGS) -of$@ benchmarks\bench.d $(IOLIB)
-benchmarks\release_bench.exe: benchmarks\bench.d
-	dmd $(DFLAGS) -O -release -noboundscheck -of$@ benchmarks\bench.d $(IOLIB)
+test\default_bench.exe: test\bench.d
+	dmd $(DFLAGS) -of$@ test\bench.d $(IOLIB)
+test\release_bench.exe: test\bench.d
+	dmd $(DFLAGS) -O -release -noboundscheck -of$@ test\bench.d $(IOLIB)
 
 
 # ddoc
