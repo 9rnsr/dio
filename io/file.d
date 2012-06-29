@@ -44,42 +44,34 @@ public:
       version(Posix)
       {
         int flags;
+        int share = octal!666;
+
         switch (mode)
         {
             case "r":
                 flags = O_RDONLY;
                 break;
             case "w":
-                flags = O_WRONLY;
+                flags = O_WRONLY | O_CREAT | O_TRUNC;
                 break;
             case "a":
+                flags = O_WRONLY | O_CREAT | O_TRUNC | O_APPEND;
+                break;
             case "r+":
+                flags = O_RDWR;
+                break;
             case "w+":
+                flags = O_RDWR | O_CREAT | O_TRUNC;
+                break;
             case "a+":
+                flags = O_RDWR | O_CREAT | O_TRUNC | O_APPEND;
+                break;
             default:
                 assert(0);
                 break;
         }
-        attach(open(fname.ptr, flags | O_NONBLOCK));
-version(none)
-{
-        int share = octal!666;
-        int access;
-        int createMode;
-        if (mode & FileMode.In)
-            access = O_RDONLY;
-        if (mode & FileMode.Out)
-        {
-            createMode = O_CREAT;   // will create if not present
-            access = O_WRONLY;
-        }
-        if (access == (O_WRONLY | O_RDONLY))
-            access = O_RDWR;
-        if ((mode & FileMode.OutNew) == FileMode.OutNew)
-            access |= O_TRUNC;      // resets file
-        attach(h = core.sys.posix.fcntl.open(toUTFz(filename),
-                                             access | createMode, share));
-}
+        attach(core.sys.posix.fcntl.open(toUTFz(filename),
+                                         flags | O_NONBLOCK, share));
       }
       version(Windows)
       {
@@ -209,23 +201,23 @@ version(none)
 
       version(Posix)
       {
+    Lagain:
         int n = core.sys.posix.unistd.read(hFile, buf.ptr, buf.length);
         if (n >= 0)
         {
             buf = buf[n .. $];
             return (n > 0);
         }
-        else
+        switch (errno)
         {
-            switch (errno)
-            {
-                case EAGAIN:
-                    return true;
-                default:
-                    break;
-            }
-            throw new Exception("pull(ref buf[]) error");
+            case EAGAIN:
+                return true;
+            case EINTR:
+                goto Lagain;
+            default:
+                break;
         }
+        throw new Exception("pull(ref buf[]) error");
       }
       version(Windows)
       {
@@ -259,23 +251,21 @@ version(none)
             }
         }
 
+        switch (GetLastError())
         {
-            switch (GetLastError())
-            {
-                case ERROR_BROKEN_PIPE:
-                    return false;
-                default:
-                    break;
-            }
-
-            debug(File)
-                std.stdio.writefln("pull ng : hFile=%08X, size=%s, GetLastError()=%s",
-                    cast(uint)hFile, size, GetLastError());
-            throw new Exception("pull(ref buf[]) error");
-
-        //  // for overlapped I/O
-        //  eof = (GetLastError() == ERROR_HANDLE_EOF);
+            case ERROR_BROKEN_PIPE:
+                return false;
+            default:
+                break;
         }
+
+        debug(File)
+            std.stdio.writefln("pull ng : hFile=%08X, size=%s, GetLastError()=%s",
+                cast(uint)hFile, size, GetLastError());
+        throw new Exception("pull(ref buf[]) error");
+
+    //  // for overlapped I/O
+    //  eof = (GetLastError() == ERROR_HANDLE_EOF);
       }
     }
 
@@ -285,25 +275,25 @@ version(none)
     {
       version(Posix)
       {
+    Lagain:
         int n = core.sys.posix.unistd.write(hFile, buf.ptr, buf.length);
         if (n >= 0)
         {
             buf = buf[n .. $];
-            return (n > 0);
+            return true;//(n > 0);
         }
-        else
+        switch (errno)
         {
-            switch (errno)
-            {
-                case EAGAIN:
-                    return true;
-                case EPIPE:
-                    return false;
-                default:
-                    break;
-            }
-            throw new Exception("push error");  //?
+            case EAGAIN:
+                return true;
+            case EPIPE:
+                return false;
+            case EINTR:
+                goto Lagain;
+            default:
+                break;
         }
+        throw new Exception("push error");  //?
       }
       version(Windows)
       {
@@ -330,9 +320,7 @@ version(none)
             }
         }
 
-        {
-            throw new Exception("push error");  //?
-        }
+        throw new Exception("push error");  //?
       }
     }
 
@@ -340,7 +328,7 @@ version(none)
     {
       version(Posix)
       {
-        return false; //todo
+        return core.sys.posix.unistd.fsync(hFile) == 0;
       }
       version(Windows)
       {

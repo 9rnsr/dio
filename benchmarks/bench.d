@@ -4,7 +4,7 @@ import std.algorithm, std.range, std.random, std.datetime;
 void main()
 {
 	auto results = map!(f => f())([
-        //&benchReadCharsFromFile,
+        &benchReadCharsFromFile,
         &benchReadLinesFromFile,
         &benchWriteCharsToFile,
         &benchWriteCharsToStdout,
