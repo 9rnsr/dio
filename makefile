@@ -2,7 +2,6 @@ SRCS=io\core.d \
 	io\file.d \
 	io\socket.d \
 	io\port.d \
-	io\text.d \
 	sys\windows.d \
 	util\typecons.d \
 	util\meta.d \
@@ -15,8 +14,7 @@ DOCS=\
 	$(DDOCDIR)\io_core.html \
 	$(DDOCDIR)\io_file.html \
 	$(DDOCDIR)\io_socket.html \
-	$(DDOCDIR)\io_port.html \
-	$(DDOCDIR)\io_text.html
+	$(DDOCDIR)\io_port.html
 DDOC=io.ddoc
 DDOCFLAGS=-D -Dd$(DDOCDIR) -c -o- $(DFLAGS)
 
@@ -41,6 +39,7 @@ clean:
 	del lib\*.lib
 	del test\*.obj
 	del test\*.exe
+	del html\d\*.html
 	del benchmarks\*.exe
 
 
@@ -84,6 +83,3 @@ $(DDOCDIR)\io_socket.html: $(DDOC) io\socket.d
 
 $(DDOCDIR)\io_port.html: $(DDOC) io\port.d
 	dmd $(DDOCFLAGS) -Dfio_port.html $(DDOC) io\port.d
-
-$(DDOCDIR)\io_text.html: $(DDOC) io\text.d
-	dmd $(DDOCFLAGS) -Dfio_text.html $(DDOC) io\text.d

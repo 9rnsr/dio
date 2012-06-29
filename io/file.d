@@ -310,7 +310,7 @@ struct ArraySource(E)
 
 unittest
 {
-    import io.text;
+    import io.port;
 
     auto r = ArraySource!char("10\r\ntest\r\n").buffered.ranged;
     long num;
