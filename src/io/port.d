@@ -38,6 +38,9 @@ static this()
 {
     version(Posix)
     {
+        import core.sys.posix.fcntl;
+        fcntl(0, F_SETFL, O_NONBLOCK);
+        //fcntl(1, F_SETFL, O_NONBLOCK/* | O_DIRECT*/);
         stdin  = File(0);
         stdout = File(1);
         stderr = File(2);
@@ -182,9 +185,12 @@ if (isSomeChar!(DeviceElementType!Dev) ||
     else
     {
         alias typeof({ return Dev.init.coerced!char.buffered; }()) LowDev;
-        return TextPort!LowDev(device.coerced!char.buffered, false);
+        return TextPort!LowDev(device.coerced!char.buffered, /*false*/true);
     }
 }
+
+//debug = X;
+debug(X) private import dbg = std.stdio;
 
 /**
 Implementation of text port.
@@ -199,17 +205,39 @@ private:
     static assert(isBufferedSource!Dev || isBufferedSink!Dev);
     static assert(isSomeChar!B);
 
+    struct Impl {
     Dev device;
     bool lineflush;
     bool eof;
     dchar front_val; bool front_ok;
     size_t dlen = 0;
+    size_t* pRefCount;
+    }
+    Impl* impl;
+    @property ref get() inout { assert(impl); return *impl; }
+    alias get this;
 
 public:
     this(Dev dev, bool lineOut)
     {
+        impl = new Impl;
+        pRefCount = new size_t;
+        *pRefCount = 1;
+
         device = dev;
         lineflush = lineOut;
+    }
+    this(this) {
+        if (impl)
+            ++(*pRefCount);
+    }
+    ~this() {
+        if (impl)
+            if (*pRefCount > 0 && --(*pRefCount) == 0) {
+                static if (isSink!Dev)
+                    flush();
+                clear(*impl);
+            }
     }
 
   static if (isSource!Dev)
@@ -219,9 +247,15 @@ public:
     */
     @property bool empty()
     {
+      version(none) {  // blocking here is bad for console input, why?
         while (device.available.length == 0 && !eof)
             eof = !device.fetch();
         assert(eof || device.available.length > 0);
+      } else {
+        if (device.available.length == 0 && !eof)
+            eof = !device.fetch();
+        assert(eof || device.available.length >= 0);
+      }
         return eof;
     }
 
@@ -231,9 +265,18 @@ public:
         if (front_ok)
             return front_val;
 
+      version(all) {    // blocking here instead of empty is good for console input, why?
+        while (device.available.length == 0 && !eof)
+            eof = !device.fetch();
+        if (eof)
+            goto err;
+        assert(device.available.length > 0);
+      }
+
         static if (isNarrowChar!B)
         {
         Lagain:
+            debug(X) dbg.writefln("available = [%(%02X %)], dlen = %d", device.available, dlen);
             B c = device.available[0];
             auto n = stride((&c)[0..1], 0);
             if (n == 1)
@@ -253,6 +296,7 @@ public:
                 }
                 front_ok = true;
                 front_val = c;
+                debug(X) dbg.writefln("-> front = %02X '%c' <n==1><dlen=%d>", c, c, dlen);
                 return c;
             }
 
@@ -270,6 +314,7 @@ public:
             device.consume(1);
         }
         front_ok = true;
+         debug(X) dbg.writefln("-> front = %02X '%c'", front_val, front_val);
         return front_val;
 
     err:
@@ -315,12 +360,14 @@ public:
     */
     void put()(dchar data)
     {
+//dbg.writefln("put1 data = %x", data);
         put((&data)[0 .. 1]);
     }
 
     /// ditto
     void put()(const(B)[] data)
     {
+//dbg.writefln("put2 data = %s", data);
         // direct output
         immutable last = data.length - 1;
     retry:
@@ -355,6 +402,7 @@ public:
     /// ditto
     void put()(const(dchar)[] data) if (isNarrowChar!B)
     {
+//dbg.writefln("put3 data = %s", data);
         // encode to narrow
         foreach (c; data)
         {
@@ -379,6 +427,7 @@ public:
     /// ditto
     void put(C)(const(C)[] data) if (isNarrowChar!C && !is(B == C))
     {
+//dbg.writefln("put4 data = %s", data);
         // transcode between narrows
         size_t i = 0;
         while (i < data.length)
