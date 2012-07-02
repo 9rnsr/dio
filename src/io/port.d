@@ -36,6 +36,12 @@ StdErrTextPort derr;   /// ditto
 
 static this()
 {
+    version(Posix)
+    {
+        stdin  = File(0);
+        stdout = File(1);
+        stderr = File(2);
+    }
     version(Windows)
     {
         stdin  = File(GetStdHandle(STD_INPUT_HANDLE));

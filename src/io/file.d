@@ -1,9 +1,21 @@
 module io.file;
 
 import io.core;
+import std.utf;
 version(Windows)
 {
     import sys.windows;
+}
+else version(Posix)
+{
+    import std.conv;
+    import core.sys.posix.sys.types;
+    import core.sys.posix.sys.stat;
+    import core.sys.posix.fcntl;
+    import core.sys.posix.unistd;
+    import core.stdc.errno;
+    import core.stdc.stdio : SEEK_SET;
+    alias int HANDLE;
 }
 
 debug
@@ -17,7 +29,14 @@ File is seekable device.
 struct File
 {
 private:
-    HANDLE hFile;
+  version(Windows)
+  {
+    HANDLE hFile = null;
+  }
+  version(Posix)
+  {
+    private HANDLE hFile = -1;
+  }
     size_t* pRefCounter;
 
 public:
@@ -25,6 +44,40 @@ public:
     */
     this(string fname, in char[] mode = "r")
     {
+      version(Posix)
+      {
+        int flags;
+        int share = octal!666;
+
+        switch (mode)
+        {
+            case "r":
+                flags = O_RDONLY;
+                break;
+            case "w":
+                flags = O_WRONLY | O_CREAT | O_TRUNC;
+                break;
+            case "a":
+                flags = O_WRONLY | O_CREAT | O_TRUNC | O_APPEND;
+                break;
+            case "r+":
+                flags = O_RDWR;
+                break;
+            case "w+":
+                flags = O_RDWR | O_CREAT | O_TRUNC;
+                break;
+            case "a+":
+                flags = O_RDWR | O_CREAT | O_TRUNC | O_APPEND;
+                break;
+            default:
+                assert(0);
+                break;
+        }
+        attach(core.sys.posix.fcntl.open(toUTFz!(const char*)(fname),
+                                         flags | O_NONBLOCK, share));
+      }
+      version(Windows)
+      {
         int share = FILE_SHARE_READ | FILE_SHARE_WRITE;
         int access = void;
         int createMode = void;
@@ -65,8 +118,9 @@ public:
                 break;
         }
 
-        attach(CreateFileW(std.utf.toUTFz!(const(wchar)*)(fname),
+        attach(CreateFileW(std.utf.toUTFz!(const wchar*)(fname),
                            access, share, null, createMode, 0, null));
+      }
     }
     package this(HANDLE h)
     {
@@ -111,12 +165,21 @@ public:
     /// ditto
     void detach()
     {
-        if (pRefCounter && *pRefCounter > 0)
+        if (pRefCounter)
         {
             if (--(*pRefCounter) == 0)
             {
                 //delete pRefCounter;   // trivial: delegate management to GC.
-                CloseHandle(cast(HANDLE)hFile);
+              version(Windows)
+              {
+                CloseHandle(hFile);
+                hFile = null;
+              }
+              version(Posix)
+              {
+                core.sys.posix.unistd.close(hFile);
+                hFile = -1;
+              }
             }
             //pRefCounter = null;       // trivial: do not need
         }
@@ -139,6 +202,28 @@ public:
         debug(File)
             std.stdio.writefln("ReadFile : buf.ptr=%08X, len=%s", cast(uint)buf.ptr, buf.length);
 
+      version(Posix)
+      {
+    Lagain:
+        int n = core.sys.posix.unistd.read(hFile, buf.ptr, buf.length);
+        if (n >= 0)
+        {
+            buf = buf[n .. $];
+            return (n > 0);
+        }
+        switch (errno)
+        {
+            case EAGAIN:
+                return true;
+            case EINTR:
+                goto Lagain;
+            default:
+                break;
+        }
+        throw new Exception("pull(ref buf[]) error");
+      }
+      version(Windows)
+      {
         DWORD size = void;
 
         // Reading console input always returns UTF-16
@@ -169,29 +254,52 @@ public:
             }
         }
 
+        switch (GetLastError())
         {
-            switch (GetLastError())
-            {
-                case ERROR_BROKEN_PIPE:
-                    return false;
-                default:
-                    break;
-            }
-
-            debug(File)
-                std.stdio.writefln("pull ng : hFile=%08X, size=%s, GetLastError()=%s",
-                    cast(uint)hFile, size, GetLastError());
-            throw new Exception("pull(ref buf[]) error");
-
-        //  // for overlapped I/O
-        //  eof = (GetLastError() == ERROR_HANDLE_EOF);
+            case ERROR_BROKEN_PIPE:
+                return false;
+            default:
+                break;
         }
+
+        debug(File)
+            std.stdio.writefln("pull ng : hFile=%08X, size=%s, GetLastError()=%s",
+                cast(uint)hFile, size, GetLastError());
+        throw new Exception("pull(ref buf[]) error");
+
+    //  // for overlapped I/O
+    //  eof = (GetLastError() == ERROR_HANDLE_EOF);
+      }
     }
 
     /**
     */
     bool push(ref const(ubyte)[] buf)
     {
+      version(Posix)
+      {
+    Lagain:
+        int n = core.sys.posix.unistd.write(hFile, buf.ptr, buf.length);
+        if (n >= 0)
+        {
+            buf = buf[n .. $];
+            return true;//(n > 0);
+        }
+        switch (errno)
+        {
+            case EAGAIN:
+                return true;
+            case EPIPE:
+                return false;
+            case EINTR:
+                goto Lagain;
+            default:
+                break;
+        }
+        throw new Exception("push error");  //?
+      }
+      version(Windows)
+      {
         DWORD size = void;
         if (GetFileType(hFile) == FILE_TYPE_CHAR)
         {
@@ -215,21 +323,44 @@ public:
             }
         }
 
-        {
-            throw new Exception("push error");  //?
-        }
+        throw new Exception("push error");  //?
+      }
     }
 
     bool flush()
     {
+      version(Posix)
+      {
+        return core.sys.posix.unistd.fsync(hFile) == 0;
+      }
+      version(Windows)
+      {
         return FlushFileBuffers(hFile) != FALSE;
+      }
     }
 
     /**
     */
     @property bool seekable()
     {
+      version(Posix)
+      {
+        if (core.sys.posix.unistd.lseek(hFile, 0, SEEK_SET) == -1)
+        {
+            switch (errno)
+            {
+                case ESPIPE:
+                    return false;
+                default:
+                    break;
+            }
+        }
+        return true;
+      }
+      version(Windows)
+      {
         return GetFileType(hFile) != FILE_TYPE_CHAR;
+      }
     }
 
     /**
