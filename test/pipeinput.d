@@ -3,7 +3,7 @@ void main()
 {
     long num;
     write("num>"), readf("%s\n", &num);
-    writefln("num = %s\n", num);
+    writefln("num = %s", num);
     assert(num == 10);
 
     string str;

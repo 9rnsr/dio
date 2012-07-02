@@ -24,7 +24,7 @@ File stdin;
 File stdout;    /// ditto
 File stderr;    /// ditto
 
-alias typeof({ return stdin.textPort(); }()) StdInTextPort;
+alias typeof({ return stdin .textPort(); }()) StdInTextPort;
 alias typeof({ return stdout.textPort(); }()) StdOutTextPort;
 alias typeof({ return stderr.textPort(); }()) StdErrTextPort;
 
@@ -43,7 +43,7 @@ static this()
         stderr = File(GetStdHandle(STD_ERROR_HANDLE));
     }
 
-    din  = stdin.textPort();
+    din  = stdin .textPort();
     dout = stdout.textPort();
     derr = stderr.textPort();
 }
